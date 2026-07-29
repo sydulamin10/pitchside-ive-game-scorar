@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Pitchside">
+  <rect width="24" height="24" rx="5" fill="#12261E" />
+  <g fill="none" stroke="#E9A63C" stroke-width="1.6" stroke-linecap="round">
+    <circle cx="12" cy="12" r="7.4" />
+    <path d="M7.6 6.1c2 3.6 2 8.2 0 11.8" stroke-dasharray="1.7 1.9" />
+    <path d="M16.4 6.1c-2 3.6-2 8.2 0 11.8" stroke-dasharray="1.7 1.9" />
+  </g>
+</svg>

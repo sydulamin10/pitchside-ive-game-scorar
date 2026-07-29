@@ -1,0 +1,289 @@
+@import "tailwindcss";
+
+@import "@fontsource-variable/inter/index.css";
+@import "@fontsource-variable/source-serif-4/index.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+@import "@fontsource/ibm-plex-mono/700.css";
+
+/*
+ * Pitchside design tokens.
+ *
+ * The metaphor is a stadium mechanical split-flap scoreboard crossed with a
+ * scorer's ledger book: flat pitch-green ground, chalk-coloured paper surfaces,
+ * hairline rules instead of shadows, and amber reserved strictly for the live
+ * state. Nothing here uses a gradient as a primary surface.
+ */
+@theme {
+  --color-pitch: #12261e;
+  --color-pitch-deep: #0b1811;
+  --color-pitch-line: #1e3a2d;
+  --color-chalk: #edeae0;
+  --color-chalk-dim: #ded9c9;
+  --color-chalk-deep: #cdc7b4;
+  --color-ink: #1b1b18;
+  --color-ink-soft: #45443d;
+  --color-flip: #e2a73b;
+  --color-flip-deep: #b8811f;
+  --color-boundary: #8c2f1b;
+  --color-boundary-soft: #b5573f;
+  --color-willow: #6e7b6a;
+  --color-willow-soft: #93a08e;
+
+  --font-sans:
+    "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Source Serif 4 Variable", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --radius-tile: 3px;
+
+  --shadow-tile: inset 0 -1px 0 rgb(0 0 0 / 0.55);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    /* A phone held pitch-side in sunlight: keep contrast high, chrome minimal. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  body {
+    background-color: var(--color-pitch);
+    color: var(--color-chalk);
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    line-height: 1.65;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-sans);
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+
+  /* Numbers are the product. Tabular figures everywhere, always. */
+  .tabular,
+  input[type="number"],
+  td,
+  th {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-flip);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--color-flip);
+    color: var(--color-ink);
+  }
+
+  /* A ledger page never scrolls sideways by accident. */
+  body,
+  #root {
+    overflow-x: clip;
+  }
+}
+
+/* ---------------------------------------------------------------- split-flap */
+
+/*
+ * One tile of the mechanical board. The hinge line across the middle and the
+ * inset bottom shadow are what read as "machine" rather than "web card".
+ */
+.flap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0.72em;
+  padding: 0.06em 0.06em 0.1em;
+  border-radius: var(--radius-tile);
+  background: linear-gradient(
+    180deg,
+    var(--color-ink) 0%,
+    var(--color-ink) 49.6%,
+    #0d0d0b 50%,
+    #26251f 100%
+  );
+  color: var(--color-chalk);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  box-shadow: var(--shadow-tile);
+}
+
+.flap::after {
+  /* The hinge: a single hairline, not a border. */
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 1px;
+  background: rgb(0 0 0 / 0.85);
+}
+
+.flap--live {
+  color: var(--color-flip);
+}
+
+.flap--wicket {
+  color: var(--color-boundary-soft);
+}
+
+.flap-rolling {
+  animation: flap-roll 90ms steps(1, end) infinite;
+}
+
+@keyframes flap-roll {
+  0% {
+    transform: translateY(-4%) scaleY(0.94);
+  }
+  50% {
+    transform: translateY(4%) scaleY(1.04);
+  }
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+/* ------------------------------------------------------------- seam divider */
+
+/*
+ * The stitched seam of a cricket ball, used wherever a lesser design would
+ * reach for a drop shadow or a gradient rule.
+ */
+.seam {
+  height: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--color-willow) 45%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-willow) 45%, transparent);
+  background-image: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-boundary) 70%, transparent) 0 6px,
+    transparent 6px 14px
+  );
+  background-position: center;
+  background-repeat: repeat-x;
+  background-size: 14px 1px;
+}
+
+.seam--chalk {
+  border-color: color-mix(in srgb, var(--color-ink) 20%, transparent);
+}
+
+/* -------------------------------------------------------------- ledger paper */
+
+.paper {
+  background-color: var(--color-chalk);
+  color: var(--color-ink);
+  /* Faint ruled lines, like a scorebook page. */
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0 27px,
+    color-mix(in srgb, var(--color-ink) 6%, transparent) 27px 28px
+  );
+}
+
+.ledger {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+.ledger caption {
+  caption-side: top;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--color-willow);
+}
+
+.ledger th {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-align: right;
+  color: color-mix(in srgb, var(--color-ink) 62%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 45%, transparent);
+  white-space: nowrap;
+}
+
+.ledger th:first-child,
+.ledger td:first-child {
+  text-align: left;
+}
+
+.ledger td {
+  padding: 0.44rem 0.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+}
+
+.ledger tbody tr:last-child td {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 45%, transparent);
+}
+
+.ledger tfoot td {
+  padding: 0.44rem 0.5rem;
+  font-weight: 650;
+  text-align: right;
+  border-bottom: none;
+}
+
+.ledger .row-number {
+  width: 1.75rem;
+  color: color-mix(in srgb, var(--color-ink) 40%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+/* On a phone a wide card scrolls inside its own frame, never the page. */
+.ledger-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ------------------------------------------------------------------ controls */
+
+.tap {
+  /* Pitch-side thumbs. Nothing smaller than this is acceptable. */
+  min-height: 3rem;
+  touch-action: manipulation;
+  user-select: none;
+}

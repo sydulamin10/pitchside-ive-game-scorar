@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------------------
+# Pitchside — backend runtime dependencies
+# Pinned with lower bounds; use `pip-compile`/`uv lock` for a hard lockfile.
+# ---------------------------------------------------------------------------
+
+# Web framework / ASGI
+fastapi>=0.121.0
+uvicorn[standard]>=0.40.0
+sse-starlette>=3.0.2
+python-multipart>=0.0.20
+
+# Validation / settings
+pydantic>=2.12.0
+pydantic-settings>=2.13.0
+email-validator>=2.2.0
+orjson>=3.11.0
+
+# Database (Neon Postgres over psycopg3 async)
+SQLAlchemy[asyncio]>=2.0.44
+psycopg[binary,pool]>=3.2.12
+alembic>=1.17.0
+greenlet>=3.2.0
+
+# Cache / pub-sub (Upstash Redis over TLS)
+redis>=6.4.0
+
+# Security
+argon2-cffi>=25.1.0
+PyJWT[crypto]>=2.10.1
+
+# Observability
+structlog>=25.4.0
+prometheus-client>=0.24.0
+
+# Utilities
+python-slugify>=8.0.4
+httpx>=0.28.1
+tenacity>=9.1.2

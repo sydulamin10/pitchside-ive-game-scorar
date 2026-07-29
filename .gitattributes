@@ -1,0 +1,10 @@
+# Keep line endings sane across Windows scorers and Linux CI.
+* text=auto eol=lf
+
+*.png binary
+*.woff binary
+*.woff2 binary
+*.ico binary
+
+# The shared laws-of-cricket fixtures are reviewed as data, not diffed as prose.
+spec/scoring-fixtures.json linguist-generated=false

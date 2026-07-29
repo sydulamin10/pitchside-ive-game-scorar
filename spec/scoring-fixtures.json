@@ -1,0 +1,644 @@
+{
+  "version": 1,
+  "description": "Executable specification for the cricket scoring engine. These fixtures are the single source of truth for the laws of cricket as this product implements them, and are run against BOTH the Python engine (backend/tests/test_engine_fixtures.py) and the TypeScript engine used for offline scoring in the browser (frontend/src/lib/scoring/engine.test.ts). Any behaviour change must change this file first.",
+  "conventions": {
+    "delivery_defaults": "striker/non_striker default to the engine's current state (only openers and incoming batters need to be named); bowler defaults to the current bowler, or the next entry in the case's `bowlers` list when a new over starts.",
+    "expect": "A subset match: only the keys present are asserted."
+  },
+  "defaults": {
+    "rules": {
+      "balls_per_over": 6,
+      "overs_limit": 20,
+      "players_per_side": 11,
+      "wide_penalty_runs": 1,
+      "no_ball_penalty_runs": 1,
+      "free_hit_after_no_ball": true,
+      "allow_boundaries": true
+    },
+    "batting": [
+      { "id": "a1", "name": "Imran", "batting_order": 1 },
+      { "id": "a2", "name": "Rakib", "batting_order": 2 },
+      { "id": "a3", "name": "Nayeem", "batting_order": 3 },
+      { "id": "a4", "name": "Sabbir", "batting_order": 4 },
+      { "id": "a5", "name": "Tanvir", "batting_order": 5 },
+      { "id": "a6", "name": "Hasan", "batting_order": 6 },
+      { "id": "a7", "name": "Jubayer", "batting_order": 7 },
+      { "id": "a8", "name": "Mehedi", "batting_order": 8 },
+      { "id": "a9", "name": "Rony", "batting_order": 9 },
+      { "id": "a10", "name": "Sohel", "batting_order": 10 },
+      { "id": "a11", "name": "Alamin", "batting_order": 11 }
+    ],
+    "bowling": [
+      { "id": "p1", "name": "Rahim", "batting_order": 1 },
+      { "id": "p2", "name": "Karim", "batting_order": 2 },
+      { "id": "p3", "name": "Fahim", "batting_order": 3 },
+      { "id": "p4", "name": "Nasir", "batting_order": 4 },
+      { "id": "p5", "name": "Zahid", "batting_order": 5 },
+      { "id": "p6", "name": "Bashir", "batting_order": 6 },
+      { "id": "p7", "name": "Tofael", "batting_order": 7 },
+      { "id": "p8", "name": "Shakil", "batting_order": 8 },
+      { "id": "p9", "name": "Rubel", "batting_order": 9 },
+      { "id": "p10", "name": "Munna", "batting_order": 10 },
+      { "id": "p11", "name": "Dipu", "batting_order": 11 }
+    ],
+    "bowlers": ["p1", "p2", "p1", "p2", "p1", "p2"]
+  },
+
+  "cases": [
+    {
+      "name": "singles and dots rotate the strike, and the over ends with a swap",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "runs": 0 },
+        { "runs": 1 },
+        { "runs": 0 },
+        { "runs": 1 },
+        { "runs": 0 },
+        { "runs": 1 }
+      ],
+      "expect": {
+        "total_runs": 3,
+        "wickets": 0,
+        "legal_balls": 6,
+        "overs_text": "1.0",
+        "run_rate": 3.0,
+        "striker_id": "a1",
+        "non_striker_id": "a2",
+        "current_bowler_id": null,
+        "previous_over_bowler_id": "p1",
+        "next_action": "select_bowler",
+        "ineligible_bowler_ids": ["p1"],
+        "extras": { "total": 0 },
+        "batting": {
+          "a1": { "runs": 2, "balls_faced": 4, "dots": 2, "strike_rate": 50.0, "batting_position": 1 },
+          "a2": { "runs": 1, "balls_faced": 2, "dots": 1, "batting_position": 2 }
+        },
+        "bowling": {
+          "p1": {
+            "balls_bowled": 6,
+            "overs_text": "1.0",
+            "runs_conceded": 3,
+            "dots": 3,
+            "maidens": 0,
+            "economy": 3.0
+          }
+        }
+      }
+    },
+    {
+      "name": "a wide costs a run, does not advance the over, and is charged to the bowler",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "extra": "wide" },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "total_runs": 1,
+        "legal_balls": 1,
+        "overs_text": "0.1",
+        "striker_id": "a1",
+        "next_action": "record_delivery",
+        "extras": { "wide": 1, "total": 1 },
+        "batting": { "a1": { "runs": 0, "balls_faced": 1, "dots": 1 } },
+        "bowling": { "p1": { "balls_bowled": 1, "runs_conceded": 1, "wides": 1, "dots": 1 } }
+      }
+    },
+    {
+      "name": "a no-ball is a ball faced and its runs off the bat belong to the batter",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "extra": "no_ball", "runs": 4 },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "total_runs": 5,
+        "legal_balls": 1,
+        "overs_text": "0.1",
+        "striker_id": "a1",
+        "is_free_hit": false,
+        "extras": { "no_ball": 1, "total": 1 },
+        "batting": { "a1": { "runs": 4, "balls_faced": 2, "fours": 1, "dots": 1 } },
+        "bowling": {
+          "p1": {
+            "balls_bowled": 1,
+            "runs_conceded": 5,
+            "no_balls": 1,
+            "fours_conceded": 1,
+            "dots": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "byes advance the over, are not charged to the bowler, and do not spoil a maiden",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "extra": "bye", "extra_runs": 2 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "total_runs": 2,
+        "legal_balls": 6,
+        "overs_text": "1.0",
+        "striker_id": "a2",
+        "non_striker_id": "a1",
+        "extras": { "bye": 2, "total": 2 },
+        "batting": { "a1": { "runs": 0, "balls_faced": 6, "dots": 5 } },
+        "bowling": {
+          "p1": { "balls_bowled": 6, "runs_conceded": 0, "maidens": 1, "dots": 5, "economy": 0.0 }
+        }
+      }
+    },
+    {
+      "name": "a single wide spoils a maiden",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "extra": "wide" },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "total_runs": 1,
+        "legal_balls": 6,
+        "overs_text": "1.0",
+        "striker_id": "a2",
+        "bowling": { "p1": { "balls_bowled": 6, "runs_conceded": 1, "maidens": 0, "wides": 1 } }
+      }
+    },
+    {
+      "name": "four wides do not change the strike",
+      "deliveries": [
+        {
+          "striker": "a1",
+          "non_striker": "a2",
+          "extra": "wide",
+          "extra_runs": 3,
+          "boundary": true
+        }
+      ],
+      "expect": {
+        "total_runs": 4,
+        "legal_balls": 0,
+        "overs_text": "0.0",
+        "striker_id": "a1",
+        "non_striker_id": "a2",
+        "extras": { "wide": 4, "total": 4 },
+        "batting": { "a1": { "runs": 0, "balls_faced": 0 } },
+        "bowling": { "p1": { "balls_bowled": 0, "runs_conceded": 4, "wides": 1 } }
+      }
+    },
+    {
+      "name": "a wide plus three run does change the strike",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "extra": "wide", "extra_runs": 3 }
+      ],
+      "expect": {
+        "total_runs": 4,
+        "striker_id": "a2",
+        "non_striker_id": "a1",
+        "extras": { "wide": 4, "total": 4 }
+      }
+    },
+    {
+      "name": "caught: the incoming batter takes the striker's end",
+      "deliveries": [
+        {
+          "striker": "a1",
+          "non_striker": "a2",
+          "wicket": "caught",
+          "fielder": "p3",
+          "new_batter": "a3"
+        }
+      ],
+      "expect": {
+        "total_runs": 0,
+        "wickets": 1,
+        "legal_balls": 1,
+        "overs_text": "0.1",
+        "striker_id": "a3",
+        "non_striker_id": "a2",
+        "next_action": "record_delivery",
+        "batting": {
+          "a1": {
+            "status": "out",
+            "is_out": true,
+            "balls_faced": 1,
+            "dismissal_text": "c Fahim b Rahim",
+            "batting_position": 1
+          },
+          "a3": { "status": "not_out", "batting_position": 3 }
+        },
+        "bowling": { "p1": { "wickets": 1, "balls_bowled": 1, "dots": 1 } },
+        "fall_of_wickets": [
+          {
+            "wicket_number": 1,
+            "runs_at_fall": 0,
+            "overs_text": "0.1",
+            "batter_id": "a1",
+            "dismissal_text": "c Fahim b Rahim"
+          }
+        ],
+        "partnerships": [
+          { "wicket_number": 0, "batter_a_id": "a1", "batter_b_id": "a2", "runs": 0, "balls": 1, "is_current": false },
+          { "wicket_number": 1, "batter_a_id": "a3", "batter_b_id": "a2", "runs": 0, "balls": 0, "is_current": true }
+        ]
+      }
+    },
+    {
+      "name": "caught after the batters crossed leaves the surviving batter on strike",
+      "deliveries": [
+        {
+          "striker": "a1",
+          "non_striker": "a2",
+          "wicket": "caught",
+          "fielder": "p3",
+          "crossed": true,
+          "new_batter": "a3"
+        }
+      ],
+      "expect": {
+        "wickets": 1,
+        "striker_id": "a2",
+        "non_striker_id": "a3",
+        "batting": { "a1": { "status": "out" } }
+      }
+    },
+    {
+      "name": "run out going for a second run: crossed=false puts the new batter on strike",
+      "deliveries": [
+        {
+          "striker": "a1",
+          "non_striker": "a2",
+          "runs": 1,
+          "wicket": "run_out",
+          "out": "a1",
+          "fielder": "p4",
+          "crossed": false,
+          "new_batter": "a3"
+        }
+      ],
+      "expect": {
+        "total_runs": 1,
+        "wickets": 1,
+        "striker_id": "a3",
+        "non_striker_id": "a2",
+        "batting": {
+          "a1": { "runs": 1, "balls_faced": 1, "status": "out", "dismissal_text": "run out (Nasir)" }
+        },
+        "bowling": { "p1": { "runs_conceded": 1, "wickets": 0 } },
+        "fall_of_wickets": [{ "wicket_number": 1, "runs_at_fall": 1 }]
+      }
+    },
+    {
+      "name": "all out ends the innings",
+      "batting": [
+        { "id": "a1", "name": "Imran", "batting_order": 1 },
+        { "id": "a2", "name": "Rakib", "batting_order": 2 },
+        { "id": "a3", "name": "Nayeem", "batting_order": 3 }
+      ],
+      "rules": { "players_per_side": 3 },
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "wicket": "bowled", "new_batter": "a3" },
+        { "wicket": "bowled" }
+      ],
+      "expect": {
+        "wickets": 2,
+        "max_wickets": 2,
+        "is_all_out": true,
+        "is_complete": true,
+        "end_reason": "all_out",
+        "next_action": "innings_complete",
+        "batting": {
+          "a1": { "status": "out", "dismissal_text": "b Rahim" },
+          "a3": { "status": "out" }
+        },
+        "bowling": { "p1": { "wickets": 2, "balls_bowled": 2 } }
+      }
+    },
+    {
+      "name": "reaching the target ends the innings",
+      "rules": { "target_runs": 5 },
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "runs": 4 },
+        { "runs": 1 }
+      ],
+      "expect": {
+        "total_runs": 5,
+        "is_complete": true,
+        "end_reason": "target_reached",
+        "next_action": "innings_complete",
+        "runs_needed": 0,
+        "target_runs": 5
+      }
+    },
+    {
+      "name": "the overs limit ends the innings",
+      "rules": { "overs_limit": 1 },
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "legal_balls": 6,
+        "is_complete": true,
+        "end_reason": "overs_complete",
+        "balls_remaining": 0,
+        "next_action": "innings_complete"
+      }
+    },
+    {
+      "name": "a free hit survives an intervening wide",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "extra": "no_ball" },
+        { "extra": "wide" }
+      ],
+      "expect": {
+        "total_runs": 2,
+        "legal_balls": 0,
+        "overs_text": "0.0",
+        "is_free_hit": true,
+        "extras": { "no_ball": 1, "wide": 1, "total": 2 }
+      }
+    },
+    {
+      "name": "a free hit is cleared by the next legal delivery",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "extra": "no_ball" },
+        { "extra": "wide" },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "total_runs": 2,
+        "legal_balls": 1,
+        "is_free_hit": false
+      }
+    },
+    {
+      "name": "a penalty award adds runs without a ball being bowled",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "extra": "penalty", "extra_runs": 5 }
+      ],
+      "expect": {
+        "total_runs": 5,
+        "legal_balls": 0,
+        "overs_text": "0.0",
+        "extras": { "penalty": 5, "total": 5 },
+        "batting": { "a1": { "runs": 0, "balls_faced": 0 } },
+        "bowling": {}
+      }
+    },
+    {
+      "name": "retired hurt is not a wicket and the batter may return later",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "runs": 0 },
+        { "wicket": "retired_hurt", "out": "a1", "new_batter": "a3" },
+        { "runs": 0 },
+        { "wicket": "bowled", "out": "a3", "new_batter": "a1" }
+      ],
+      "expect": {
+        "wickets": 1,
+        "legal_balls": 4,
+        "striker_id": "a1",
+        "non_striker_id": "a2",
+        "batting": {
+          "a1": { "status": "not_out", "balls_faced": 2, "batting_position": 1 },
+          "a3": { "status": "out", "balls_faced": 2, "batting_position": 3 }
+        },
+        "bowling": { "p1": { "wickets": 1, "balls_bowled": 4, "maidens": 0 } },
+        "fall_of_wickets": [{ "wicket_number": 1, "batter_id": "a3" }]
+      }
+    },
+    {
+      "name": "chasing: required run rate and projected score",
+      "rules": { "overs_limit": 10, "target_runs": 61 },
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "runs": 6 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "total_runs": 6,
+        "run_rate": 6.0,
+        "runs_needed": 55,
+        "balls_remaining": 54,
+        "required_run_rate": 6.11,
+        "projected_score": 60,
+        "batting": { "a1": { "runs": 6, "sixes": 1, "balls_faced": 6, "dots": 5 } }
+      }
+    },
+    {
+      "name": "a mixed over: every extra type in one over",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "extra": "wide" },
+        { "extra": "no_ball", "runs": 1 },
+        { "extra": "bye", "extra_runs": 1 },
+        { "extra": "leg_bye", "extra_runs": 2 },
+        { "runs": 4 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "total_runs": 10,
+        "legal_balls": 6,
+        "overs_text": "1.0",
+        "run_rate": 10.0,
+        "striker_id": "a2",
+        "non_striker_id": "a1",
+        "extras": { "wide": 1, "no_ball": 1, "bye": 1, "leg_bye": 2, "penalty": 0, "total": 5 },
+        "batting": {
+          "a1": { "runs": 5, "balls_faced": 6, "fours": 1, "dots": 3 },
+          "a2": { "runs": 0, "balls_faced": 1, "dots": 0 }
+        },
+        "bowling": {
+          "p1": {
+            "balls_bowled": 6,
+            "runs_conceded": 7,
+            "wides": 1,
+            "no_balls": 1,
+            "dots": 3,
+            "economy": 7.0,
+            "maidens": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "two overs: the strike carries over correctly and both bowlers are tracked",
+      "bowlers": ["p1", "p2"],
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "runs": 1 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 2 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "total_runs": 3,
+        "legal_balls": 12,
+        "overs_text": "2.0",
+        "striker_id": "a2",
+        "non_striker_id": "a1",
+        "previous_over_bowler_id": "p2",
+        "next_action": "select_bowler",
+        "ineligible_bowler_ids": ["p2"],
+        "batting": {
+          "a1": { "runs": 3, "balls_faced": 7, "dots": 5 },
+          "a2": { "runs": 0, "balls_faced": 5, "dots": 5 }
+        },
+        "bowling": {
+          "p1": { "balls_bowled": 6, "runs_conceded": 1, "maidens": 0 },
+          "p2": { "balls_bowled": 6, "runs_conceded": 2, "maidens": 0 }
+        }
+      }
+    }
+  ],
+
+  "validation_cases": [
+    {
+      "name": "a batter cannot be bowled off a no-ball",
+      "deliveries": [{ "striker": "a1", "non_striker": "a2", "runs": 0 }],
+      "candidate": { "extra": "no_ball", "wicket": "bowled" },
+      "expect_error": "wicket_illegal_on_no_ball"
+    },
+    {
+      "name": "runs off the bat cannot be combined with a wide",
+      "deliveries": [{ "striker": "a1", "non_striker": "a2", "runs": 0 }],
+      "candidate": { "extra": "wide", "runs": 2 },
+      "expect_error": "bat_runs_with_extra"
+    },
+    {
+      "name": "extras require an extra type",
+      "deliveries": [{ "striker": "a1", "non_striker": "a2", "runs": 0 }],
+      "candidate": { "extra_runs": 2 },
+      "expect_error": "extras_without_type"
+    },
+    {
+      "name": "a bowler may not bowl consecutive overs",
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 }
+      ],
+      "candidate": { "bowler": "p1", "runs": 0 },
+      "expect_error": "consecutive_overs"
+    },
+    {
+      "name": "the bowler cannot change mid-over",
+      "deliveries": [{ "striker": "a1", "non_striker": "a2", "runs": 0 }],
+      "candidate": { "bowler": "p2", "runs": 0 },
+      "expect_error": "bowler_changed_mid_over"
+    },
+    {
+      "name": "a catch needs a fielder",
+      "deliveries": [{ "striker": "a1", "non_striker": "a2", "runs": 0 }],
+      "candidate": { "wicket": "caught" },
+      "expect_error": "missing_fielder"
+    },
+    {
+      "name": "boundaries can be disabled for box cricket",
+      "rules": { "allow_boundaries": false },
+      "deliveries": [{ "striker": "a1", "non_striker": "a2", "runs": 0 }],
+      "candidate": { "runs": 4 },
+      "expect_error": "boundaries_disabled"
+    },
+    {
+      "name": "the striker and non-striker must differ",
+      "deliveries": [{ "striker": "a1", "non_striker": "a2", "runs": 0 }],
+      "candidate": { "striker": "a1", "non_striker": "a1", "runs": 0 },
+      "expect_error": "batters_identical"
+    },
+    {
+      "name": "a batter who is out cannot bat again",
+      "deliveries": [
+        {
+          "striker": "a1",
+          "non_striker": "a2",
+          "wicket": "bowled",
+          "new_batter": "a3"
+        }
+      ],
+      "candidate": { "striker": "a1", "non_striker": "a2", "runs": 0 },
+      "expect_error": "batter_already_out"
+    },
+    {
+      "name": "nothing can be recorded once the innings is complete",
+      "rules": { "overs_limit": 1 },
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 }
+      ],
+      "candidate": { "runs": 1 },
+      "expect_error": "innings_complete"
+    }
+  ],
+
+  "standings_cases": [
+    {
+      "name": "points and net run rate across three teams",
+      "config": { "win": 2, "tie": 1, "loss": 0, "no_result": 1, "use_net_run_rate": true },
+      "team_names": { "t1": "Dhaka Dynamos", "t2": "Chattogram Chargers", "t3": "Sylhet Strikers" },
+      "records": [
+        { "team_id": "t1", "match_id": "m1", "outcome": "win", "runs_scored": 180, "overs_faced": 20, "runs_conceded": 150, "overs_bowled": 20 },
+        { "team_id": "t2", "match_id": "m1", "outcome": "loss", "runs_scored": 150, "overs_faced": 20, "runs_conceded": 180, "overs_bowled": 20 },
+        { "team_id": "t1", "match_id": "m2", "outcome": "loss", "runs_scored": 120, "overs_faced": 20, "runs_conceded": 121, "overs_bowled": 20 },
+        { "team_id": "t3", "match_id": "m2", "outcome": "win", "runs_scored": 121, "overs_faced": 20, "runs_conceded": 120, "overs_bowled": 20 }
+      ],
+      "expect": [
+        { "team_id": "t1", "position": 1, "played": 2, "won": 1, "lost": 1, "points": 2, "net_run_rate": 0.725 },
+        { "team_id": "t3", "position": 2, "played": 1, "won": 1, "lost": 0, "points": 2, "net_run_rate": 0.05 },
+        { "team_id": "t2", "position": 3, "played": 1, "won": 0, "lost": 1, "points": 0, "net_run_rate": -1.5 }
+      ]
+    },
+    {
+      "name": "a side bowled out is charged its full quota of overs",
+      "config": { "win": 2, "tie": 1, "loss": 0, "no_result": 1, "use_net_run_rate": true },
+      "team_names": { "t1": "Rangpur Riders", "t2": "Khulna Kings" },
+      "records": [
+        { "team_id": "t1", "match_id": "m1", "outcome": "win", "runs_scored": 90, "overs_faced": 12.0, "runs_conceded": 40, "overs_bowled": 20.0 },
+        { "team_id": "t2", "match_id": "m1", "outcome": "loss", "runs_scored": 40, "overs_faced": 20.0, "runs_conceded": 90, "overs_bowled": 12.0 }
+      ],
+      "expect": [
+        { "team_id": "t1", "position": 1, "points": 2, "net_run_rate": 5.5 },
+        { "team_id": "t2", "position": 2, "points": 0, "net_run_rate": -5.5 }
+      ]
+    },
+    {
+      "name": "an abandoned match gives a point to each side and no run-rate data",
+      "config": { "win": 2, "tie": 1, "loss": 0, "no_result": 1, "use_net_run_rate": true },
+      "team_names": { "t1": "Barishal Bulls", "t2": "Comilla Comets" },
+      "records": [
+        { "team_id": "t1", "match_id": "m1", "outcome": "no_result", "counts_for_run_rate": false },
+        { "team_id": "t2", "match_id": "m1", "outcome": "no_result", "counts_for_run_rate": false }
+      ],
+      "expect": [
+        { "team_id": "t1", "position": 1, "played": 1, "no_result": 1, "points": 1, "net_run_rate": 0.0 },
+        { "team_id": "t2", "position": 2, "played": 1, "no_result": 1, "points": 1, "net_run_rate": 0.0 }
+      ]
+    }
+  ]
+}

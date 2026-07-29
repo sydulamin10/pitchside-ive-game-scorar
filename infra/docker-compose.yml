@@ -1,0 +1,91 @@
+# ---------------------------------------------------------------------------
+# The whole product on one machine.
+#
+#   docker compose -f infra/docker-compose.yml up --build
+#   → web  http://localhost:8080
+#   → api  http://localhost:8000/docs
+#
+# Postgres and Redis are here so a contributor needs no cloud account to run the
+# tests. In production these two are Neon and Upstash, and the only difference is
+# DATABASE_URL and REDIS_URL — nothing in the images knows which it is talking to.
+# ---------------------------------------------------------------------------
+
+name: pitchside
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pitchside
+      POSTGRES_PASSWORD: pitchside
+      POSTGRES_DB: pitchside
+      # Deterministic collation, so ORDER BY on team names matches production.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pitchside -d pitchside"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  cache:
+    image: redis:7-alpine
+    # No persistence: everything in here is a cache or a pub/sub channel, and
+    # losing it costs one refetch per open scorecard.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ../backend
+    environment:
+      ENV: development
+      DEBUG: "false"
+      SECRET_KEY: local-development-secret-key-not-for-any-real-deployment
+      DATABASE_URL: postgresql+psycopg://pitchside:pitchside@db:5432/pitchside
+      REDIS_URL: redis://cache:6379/0
+      PUBLIC_WEB_URL: http://localhost:8080
+      PUBLIC_API_URL: http://localhost:8000
+      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+      ALLOWED_HOSTS: "*"
+      LOG_JSON: "false"
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    # Migrations run here rather than in an init container so the stack is one
+    # command; a real deployment runs them as a separate release step.
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        alembic upgrade head &&
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers
+
+  web:
+    build:
+      context: ../frontend
+      args:
+        # Empty means same-origin; the browser calls http://localhost:8000
+        # directly in this stack, so the API origin is given explicitly.
+        VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+
+volumes:
+  db-data:

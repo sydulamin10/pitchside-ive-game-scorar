@@ -1,0 +1,76 @@
+[project]
+name = "pitchside-backend"
+version = "1.0.0"
+description = "Pitchside — ball-by-ball live cricket scoring API"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["."]
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # comprehensions
+    "UP",  # pyupgrade
+    "SIM", # simplify
+    "RET", # return
+    "ASYNC",
+    "S",   # bandit
+    "T20", # no print
+]
+ignore = [
+    "S101",  # assert is fine in tests / invariants
+    "B008",  # FastAPI Depends() in defaults is idiomatic
+    "SIM108",
+    # PEP 695 type parameters are not yet fully supported by the pydantic plugin
+    # ecosystem, so classic Generic/TypeVar usage stays.
+    "UP046",
+    "UP047",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S311"]
+"app/core/config.py" = ["S104"]
+# Enum members whose *values* look like credential strings to bandit.
+"app/models/enums.py" = ["S105"]
+"app/schemas/auth.py" = ["S105"]
+# Developer scripts print to stdout on purpose.
+"tools/*" = ["T201"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+warn_unused_configs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = false
+strict_equality = true
+ignore_missing_imports = true
+exclude = ["alembic/versions"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["ignore::DeprecationWarning"]
+addopts = "-q --strict-markers"
+markers = [
+    "integration: requires a live Postgres database (TEST_DATABASE_URL)",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/main.py", "alembic/*"]

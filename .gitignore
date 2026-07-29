@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------- secrets
+# Everything real lives in .env; only .env.example is tracked.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# ------------------------------------------------------------------ python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# -------------------------------------------------------------------- node
+node_modules/
+dist/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# ----------------------------------------------------------------- tooling
+# A local Postgres/Redis unpacked for development, and anything else scratch.
+.local/
+*.log
+
+# --------------------------------------------------------------------- os
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------------ editors
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
