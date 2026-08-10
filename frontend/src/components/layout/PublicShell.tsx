@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 
 import { SeamMark } from "./Brand";
+import { InstallAppButton } from "./InstallAppButton";
 
 const NAV = [
   { to: "/features/score", label: "Scoring" },
@@ -77,6 +78,12 @@ export function PublicShell() {
           </nav>
 
           <div className="flex items-center gap-2">
+            <Link to="/install" className="hidden sm:block">
+              <Button variant="ghost" size="sm">
+                Install
+              </Button>
+            </Link>
+            <InstallAppButton className="hidden md:inline-flex" />
             {signedIn ? (
               <Link to="/app">
                 <Button size="sm">My matches</Button>

@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
 import { Badge, Panel, Seam, SectionTitle, Spinner } from "@/components/ui/Surface";
+import { InstallAppButton } from "@/components/layout/InstallAppButton";
 import { ApiError } from "@/lib/api/client";
 import { auth } from "@/lib/api/endpoints";
 import { formatDateTime, relativeTime } from "@/lib/utils";
@@ -61,6 +62,25 @@ export default function Account() {
           {user?.display_name} · {user?.email}
         </p>
       </header>
+
+      <Panel className="flex flex-col">
+        <div className="px-4 py-3">
+          <SectionTitle>Install on this device</SectionTitle>
+          <p className="pt-1 font-sans text-xs text-willow">
+            Add Pitchside to your phone home screen or PC Start menu — opens like an app, still
+            the web version underneath.
+          </p>
+        </div>
+        <Seam />
+        <div className="px-4 py-4">
+          <InstallAppButton size="md" label="Download / Install app" />
+          <p className="pt-2 font-sans text-[11px] text-willow">
+            Windows: downloads <span className="text-chalk">Pitchside-Create-Shortcut.vbs</span> —
+            open that file once to put Pitchside on Desktop (Chrome/Edge app mode). Phone home-screen
+            icons need HTTPS (or localhost).
+          </p>
+        </div>
+      </Panel>
 
       <Panel className="flex flex-col">
         <div className="px-4 py-3">

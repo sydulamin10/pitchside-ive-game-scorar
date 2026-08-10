@@ -10,6 +10,7 @@ import { toastError } from "@/store/toast";
 
 import { SeamMark } from "./Brand";
 import { ConnectionBanner } from "./ConnectionBanner";
+import { InstallAppButton } from "./InstallAppButton";
 
 const LINKS = [
   { to: "/app", label: "Matches", end: true },
@@ -71,6 +72,7 @@ export function AppShell() {
           </nav>
 
           <div className="flex items-center gap-2">
+            <InstallAppButton className="hidden sm:inline-flex" variant="ghost" />
             <span className="hidden font-sans text-xs text-willow lg:inline">
               {user?.display_name}
             </span>
@@ -122,6 +124,9 @@ export function AppShell() {
             >
               Sign out
             </button>
+            <div className="px-3 pt-2">
+              <InstallAppButton className="w-full" variant="secondary" />
+            </div>
           </nav>
         )}
       </header>

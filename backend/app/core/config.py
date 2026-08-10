@@ -123,6 +123,30 @@ class Settings(BaseSettings):
     SSE_MAX_CONNECTION_SECONDS: int = Field(default=3_600, ge=60)
     SSE_MAX_CONNECTIONS_PER_MATCH: int = Field(default=2_000, ge=1)
 
+    # -------------------------------------------------------------- streaming
+    #: MediaMTX WHIP publish base (browser camera → MediaMTX).
+    MEDIAMTX_WHIP_BASE_URL: str = "http://localhost:8889"
+    #: MediaMTX RTMP ingest base (optional restream destination).
+    MEDIAMTX_RTMP_BASE_URL: str = "rtmp://localhost:1935"
+    #: Legacy aliases (prefer *_BASE_URL).
+    MEDIAMTX_WHIP_URL: str | None = None
+    MEDIAMTX_HLS_URL: str | None = None
+
+    # -------------------------------------------------------------- media
+    #: local = store under MEDIA_LOCAL_DIR and serve in development;
+    #: r2 = Cloudflare R2 / S3-compatible signed PUT uploads.
+    MEDIA_BACKEND: Literal["local", "r2"] = "local"
+    MEDIA_LOCAL_DIR: str = "media"
+    MEDIA_PUBLIC_BASE_URL: str | None = None
+    MEDIA_MAX_BYTES: int = Field(default=5_242_880, ge=65_536, le=20_971_520)  # 5 MiB
+    MEDIA_UPLOAD_TTL_SECONDS: int = Field(default=900, ge=60, le=3_600)
+    R2_ACCOUNT_ID: str | None = None
+    R2_ACCESS_KEY_ID: str | None = None
+    R2_SECRET_ACCESS_KEY: SecretStr | None = None
+    R2_BUCKET: str | None = None
+    R2_PUBLIC_BASE_URL: str | None = None
+    R2_ENDPOINT_URL: str | None = None
+
     # ------------------------------------------------------- observability
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     LOG_JSON: bool = True
@@ -227,6 +251,24 @@ class Settings(BaseSettings):
 
     def public_tournament_url(self, slug: str) -> str:
         return f"{self.PUBLIC_WEB_URL.rstrip('/')}/t/{slug}"
+
+    def public_player_url(self, slug: str) -> str:
+        return f"{self.PUBLIC_WEB_URL.rstrip('/')}/p/{slug}"
+
+    def public_club_url(self, slug: str) -> str:
+        return f"{self.PUBLIC_WEB_URL.rstrip('/')}/club/{slug}"
+
+    def public_camera_url(self, match_slug: str, token: str) -> str:
+        return f"{self.PUBLIC_WEB_URL.rstrip('/')}/s/{match_slug}/camera/{token}"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def media_public_base(self) -> str:
+        if self.MEDIA_PUBLIC_BASE_URL:
+            return self.MEDIA_PUBLIC_BASE_URL.rstrip("/")
+        if self.MEDIA_BACKEND == "r2" and self.R2_PUBLIC_BASE_URL:
+            return self.R2_PUBLIC_BASE_URL.rstrip("/")
+        return f"{self.PUBLIC_API_URL.rstrip('/')}/media"
 
 
 @lru_cache(maxsize=1)

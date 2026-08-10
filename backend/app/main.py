@@ -17,6 +17,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -32,6 +33,7 @@ from app.core.middleware import (
 from app.db.redis import close_redis, init_redis
 from app.db.session import dispose_engine
 from app.realtime.broker import broker
+from app.services.media_service import local_media_root
 
 logger = get_logger(__name__)
 
@@ -138,6 +140,15 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+    # Local disk is fine for single-node hosts (e.g. cPanel). Prefer R2/CDN in
+    # multi-instance production by setting MEDIA_BACKEND=r2.
+    if settings.MEDIA_BACKEND == "local":
+        app.mount(
+            "/media",
+            StaticFiles(directory=str(local_media_root()), check_dir=False),
+            name="media",
+        )
 
     # Unversioned aliases, because orchestrators and uptime checks expect them at
     # a fixed path that never moves with the API version.

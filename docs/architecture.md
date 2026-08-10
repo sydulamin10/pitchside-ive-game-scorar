@@ -77,6 +77,67 @@ result is what the scorer sees. The queue drains in order when the connection
 returns, and a replayed `client_event_id` is recognised by the server as a duplicate
 rather than recorded twice.
 
+## Profiles and media
+
+Club and player profiles carry branding fields (logo, cover, jersey colours, bio)
+and a public slug. Images upload via ``POST /api/v1/media/upload-url`` — either a
+Cloudflare R2 signed PUT (``MEDIA_BACKEND=r2``) or a local store under
+``MEDIA_LOCAL_DIR`` served at ``/media`` (including single-node production such as
+cPanel). Public pages live at ``/club/:slug`` and
+``/p/:slug``.
+
+## Career stats
+
+Player career batting/bowling/fielding figures are **never** stored as mutable
+aggregate columns. ``career_stats.compute_career_stats`` finds every
+``MatchPlayer`` linked to the saved player and aggregates from the delivery log.
+Results cache in Redis under ``career:{player_id}`` (≈60s) when available.
+Public: ``GET /public/players/{id_or_slug}/stats``, ``…/qr`` (SVG), ``…/awards``.
+Awards CRUD (owner/manager): ``/teams/{team_id}/players/{player_id}/awards``.
+
+## Team memberships
+
+``owner_user_id`` remains the canonical club owner; access also honours active
+``team_memberships`` (owner, manager, coach, captain, vice_captain, player).
+Creating a team inserts an owner membership; migration backfills existing clubs.
+Endpoints: invites, token accept, join-requests accept/reject, role patch, remove.
+
+## Compact overlay enrichment
+
+``MatchSnapshot.compact()`` and the public overlay include venue, city, tournament
+(id/name/slug/round), toss, and batter/bowler ``photo_url`` from linked ``Player``
+rows (batch-loaded in ``build_snapshot`` / squad selectinload).
+
+## Stream sessions and MediaMTX
+
+Authenticated ``/matches/{id}/stream-sessions`` (create, active GET/PATCH,
+go-live, end) manages a ``StreamSession`` (idle → preview|live → ended).
+RTMP stream keys are Fernet-encrypted at rest and returned only on create/update.
+Responses include ``whip_publish_url`` from ``MEDIAMTX_WHIP_BASE_URL``.
+Compose runs ``bluenviron/mediamtx`` (ports 8554 RTSP, 1935 RTMP, 8889 WHIP,
+8888 HLS). Permissions-Policy allows ``camera=(self), microphone=(self)`` so
+the broadcast studio can capture.
+## Event graphics (SSE-driven)
+
+Overlays and event graphics consume the compact live projection over SSE
+(``/stream/matches/{slug}``) plus the public overlay JSON — no second source of
+truth for score or photos.
+
+## Slice 8 (later)
+
+Wagon-wheel shot plots, AI commentary assists, and admin tooling are deferred;
+they belong on top of the delivery log and media pipeline, not as parallel stores.
+
+## Go Live graphics package
+
+Host **Go Live** (`/app/matches/:id/broadcast`) offers **This Device** and
+**External Camera**. External links use ``camera_token`` on ``stream_sessions``:
+public ``/s/:slug/camera/:token`` opens the phone camera with the live SSE overlay.
+QR is served at ``GET /public/matches/{slug}/camera/{token}/qr``. Overlay skins:
+``style=broadcast|minimal``. Post-match awards/MVP and runs-per-over series are
+derived on read via ``match_awards.compute_match_awards``
+(``GET /public/matches/{slug}/awards``).
+
 ## Concurrency, honestly
 
 Two scorers on one match is normal — a phone at the boundary and a laptop in the

@@ -58,11 +58,6 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 # row lock, and horizontal scaling belongs to the orchestrator, not to a
 # process manager hidden inside the image. Live updates fan out through Redis,
 # so any number of containers stay in step.
-CMD ["uvicorn", "app.main:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--proxy-headers", \
-     "--forwarded-allow-ips", "*", \
-     "--timeout-graceful-shutdown", "25", \
-     "--no-server-header", \
-     "--no-access-log"]
+#
+# PORT is read at runtime so PaaS hosts (Render, Railway, Fly) can inject it.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*' --timeout-graceful-shutdown 25 --no-server-header --no-access-log"]

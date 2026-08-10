@@ -163,6 +163,11 @@ export default function ScoringConsole() {
               Open scorecard
             </Button>
           </a>
+          <Link to={`/app/matches/${match.id}/broadcast`}>
+            <Button size="sm" variant="secondary">
+              Go Live
+            </Button>
+          </Link>
         </div>
       </header>
 

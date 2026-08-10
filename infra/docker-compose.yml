@@ -44,6 +44,16 @@ services:
       timeout: 3s
       retries: 20
 
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    ports:
+      - "8554:8554"   # RTSP
+      - "1935:1935"   # RTMP
+      - "8889:8889"   # WHIP / WHEP (WebRTC)
+      - "8888:8888"   # HLS
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+
   api:
     build:
       context: ../backend
@@ -59,6 +69,8 @@ services:
       ALLOWED_HOSTS: "*"
       LOG_JSON: "false"
       LOG_LEVEL: INFO
+      MEDIAMTX_WHIP_BASE_URL: http://mediamtx:8889
+      MEDIAMTX_RTMP_BASE_URL: rtmp://mediamtx:1935
     ports:
       - "8000:8000"
     depends_on:
@@ -66,6 +78,8 @@ services:
         condition: service_healthy
       cache:
         condition: service_healthy
+      mediamtx:
+        condition: service_started
     # Migrations run here rather than in an init container so the stack is one
     # command; a real deployment runs them as a separate release step.
     command:

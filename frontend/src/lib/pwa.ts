@@ -1,22 +1,40 @@
 /**
- * Service worker registration.
- *
- * The worker is hand-written (`public/sw.js`) rather than generated, because the
- * caching rules here are opinionated and worth reading: the app shell is served
- * cache-first so the console opens instantly with no signal, GET reads fall back
- * to the last response, and writes are never intercepted — the IndexedDB queue
- * owns offline writes, and a service worker replaying a POST would be a second,
- * competing source of truth.
+ * Service worker registration — required for real home-screen / desktop PWA install.
  */
 
 export function registerServiceWorker(): void {
   if (!("serviceWorker" in navigator)) return;
-  // Only in production: a stale worker in dev is a debugging trap.
-  if (import.meta.env.DEV) return;
 
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
-      // A blocked worker only costs offline caching; the app still works.
-    });
+    void (async () => {
+      try {
+        await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        await navigator.serviceWorker.ready;
+        // Install prompt only appears once this document is controlled.
+        if (
+          !navigator.serviceWorker.controller &&
+          !sessionStorage.getItem("pitchside.sw.reload")
+        ) {
+          sessionStorage.setItem("pitchside.sw.reload", "1");
+          location.reload();
+        }
+      } catch {
+        // Offline caching / installability unavailable; app still works.
+      }
+    })();
   });
+}
+
+export async function ensureServiceWorkerReady(timeoutMs = 4000): Promise<boolean> {
+  if (!("serviceWorker" in navigator)) return false;
+  try {
+    await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), timeoutMs)),
+    ]);
+    return Boolean(navigator.serviceWorker.controller || (await navigator.serviceWorker.getRegistration()));
+  } catch {
+    return false;
+  }
 }

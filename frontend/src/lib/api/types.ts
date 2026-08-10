@@ -131,24 +131,194 @@ export interface Player {
   id: string;
   team_id: string;
   name: string;
+  nickname: string | null;
+  public_slug: string | null;
   role: PlayerRole;
   batting_hand: "right" | "left" | null;
   bowling_style: string | null;
   jersey_number: number | null;
   sort_order: number;
   is_active: boolean;
+  photo_url: string | null;
+  cover_url: string | null;
+  date_of_birth: string | null;
+  nationality: string | null;
+  location: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  bio: string | null;
+  career_summary: string | null;
+  social_links: Record<string, string>;
+  profile_url: string | null;
 }
 
 export interface Team {
   id: string;
   name: string;
   short_name: string | null;
+  public_slug: string | null;
   logo_url: string | null;
+  cover_url: string | null;
   primary_color: string | null;
+  secondary_color: string | null;
   home_ground: string | null;
+  founded_year: number | null;
+  description: string | null;
+  coach_name: string | null;
+  manager_name: string | null;
+  owner_label: string | null;
+  sponsor: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  social_links: Record<string, string>;
   created_at: string;
+  profile_url: string | null;
   players: Player[];
 }
+
+export interface PublicPlayerProfile extends Omit<Player, "team_id" | "sort_order" | "is_active"> {
+  team: {
+    id: string;
+    name: string;
+    short_name: string | null;
+    public_slug: string | null;
+    logo_url: string | null;
+    primary_color: string | null;
+    secondary_color: string | null;
+    profile_url: string | null;
+  } | null;
+}
+
+export type PublicClubProfile = Omit<Team, "contact_email" | "contact_phone" | "created_at">;
+
+export interface MediaUploadUrl {
+  upload_url: string;
+  public_url: string;
+  method: "PUT";
+  headers: Record<string, string>;
+  object_key: string;
+  expires_at: string;
+  backend: "local" | "r2";
+}
+
+export type TeamMemberRole =
+  | "owner"
+  | "manager"
+  | "coach"
+  | "captain"
+  | "vice_captain"
+  | "player";
+
+export type MembershipStatus = "active" | "invited" | "requested" | "rejected" | "left";
+
+export interface TeamMembership {
+  id: string;
+  team_id: string;
+  user_id: string | null;
+  player_id: string | null;
+  role: TeamMemberRole;
+  status: MembershipStatus;
+  invited_email: string | null;
+  invite_token: string | null;
+  invited_by_user_id: string | null;
+  responded_at: string | null;
+  created_at: string;
+}
+
+export interface PlayerAward {
+  id: string;
+  player_id: string;
+  team_id: string | null;
+  kind: "trophy" | "certificate" | "achievement";
+  title: string;
+  description: string | null;
+  awarded_at: string;
+  image_url: string | null;
+}
+
+export interface CareerStats {
+  batting?: Record<string, number | string | null>;
+  bowling?: Record<string, number | string | null>;
+  fielding?: Record<string, number | string | null>;
+  recent_matches?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface BroadcastSession {
+  id: string;
+  match_id: string;
+  status: "idle" | "preview" | "live" | "ended" | "error";
+  destination_label: string | null;
+  rtmp_url: string | null;
+  whip_path: string | null;
+  whip_publish_url: string | null;
+  has_stream_key: boolean;
+  stream_key?: string;
+  camera_token: string | null;
+  camera_url: string | null;
+  camera_qr_url?: string | null;
+  publisher_claimed_at: string | null;
+  last_error: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  created_by_user_id: string;
+  created_at: string;
+}
+
+export interface CameraInvite {
+  slug: string;
+  match_id: string;
+  title: string;
+  status: string;
+  publisher_claimed: boolean;
+  whip_publish_url: string | null;
+  destination_label: string | null;
+  camera_url: string;
+}
+
+export interface MatchAwards {
+  result_summary?: string | null;
+  man_of_the_match?: {
+    player_id: string;
+    name: string;
+    photo_url?: string | null;
+    rating?: number;
+    stat?: string;
+  } | null;
+  best_batter?: {
+    player_id: string;
+    name: string;
+    photo_url?: string | null;
+    stat?: string;
+  } | null;
+  best_bowler?: {
+    player_id: string;
+    name: string;
+    photo_url?: string | null;
+    stat?: string;
+  } | null;
+  best_fielder?: {
+    player_id: string;
+    name: string;
+    photo_url?: string | null;
+    stat?: string;
+  } | null;
+  mvp_ratings?: Array<{
+    player_id: string;
+    name: string;
+    photo_url?: string | null;
+    rating: number;
+  }>;
+  innings?: Array<{
+    sequence: number;
+    batting_team: string;
+    bowling_team: string;
+    score: string;
+    overs_text: string;
+    overs: Array<{ over_number: number; runs: number; wickets: number }>;
+  }>;
+}
+
 
 // ----------------------------------------------------------------- scoring
 
@@ -392,6 +562,8 @@ export interface BatterLine {
   fours: number;
   sixes: number;
   strike_rate: number;
+  photo_url?: string | null;
+  jersey_number?: number | null;
 }
 
 export interface BowlerLine {
@@ -402,7 +574,10 @@ export interface BowlerLine {
   wickets: number;
   economy: number;
   maidens: number;
+  photo_url?: string | null;
+  jersey_number?: number | null;
 }
+
 
 /** The realtime frame. Small on purpose: it travels over mobile data. */
 export interface CompactState {
@@ -411,6 +586,19 @@ export interface CompactState {
   innings_id?: string;
   innings_sequence?: number;
   title?: string;
+  venue?: string | null;
+  city?: string | null;
+  tournament?: {
+    id: string;
+    name: string;
+    slug: string;
+    round: string | null;
+  } | null;
+  toss?: {
+    winner?: TeamBadge | null;
+    winner_team_id?: string | null;
+    decision?: TossDecision | null;
+  } | null;
   batting_team?: TeamBadge;
   bowling_team?: TeamBadge;
   score?: {

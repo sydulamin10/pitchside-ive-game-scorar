@@ -7,6 +7,7 @@ import { App } from "./App";
 import { ApiError } from "./lib/api/client";
 import { pruneCache } from "./lib/offline/db";
 import { registerServiceWorker } from "./lib/pwa";
+import { bindInstallPromptListeners } from "./lib/pwaInstall";
 import "./styles/index.css";
 
 const queryClient = new QueryClient({
@@ -43,4 +44,5 @@ createRoot(root).render(
 );
 
 registerServiceWorker();
+bindInstallPromptListeners();
 void pruneCache();

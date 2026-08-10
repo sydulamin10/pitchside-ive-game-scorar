@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { FlapNumber, FlapText } from "@/components/board/SplitFlap";
 import { BatMark } from "@/components/layout/Brand";
+import { InstallAppButton } from "@/components/layout/InstallAppButton";
 import { Button } from "@/components/ui/Button";
 import { Badge, LiveDot, Panel, Paper, Seam, SectionTitle } from "@/components/ui/Surface";
 
@@ -131,6 +132,12 @@ export function Home() {
               <Button size="lg">
                 Start scoring a match
                 <ArrowRight aria-hidden="true" className="size-4" />
+              </Button>
+            </Link>
+            <InstallAppButton size="lg" variant="ghost" label="Install app" />
+            <Link to="/install">
+              <Button variant="ghost" size="lg">
+                Phone home-screen setup
               </Button>
             </Link>
             <Link to="/features/score">

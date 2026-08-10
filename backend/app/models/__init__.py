@@ -7,6 +7,7 @@ modules, so the registry is always complete.
 
 from app.db.base import Base
 from app.models.audit import AuditLog
+from app.models.awards import PlayerAward
 from app.models.match import (
     Delivery,
     DeliveryRevision,
@@ -16,6 +17,8 @@ from app.models.match import (
     MatchCollaborator,
     MatchPlayer,
 )
+from app.models.membership import TeamMembership
+from app.models.stream import StreamSession
 from app.models.team import Player, Team
 from app.models.tournament import (
     BracketMatch,
@@ -38,8 +41,11 @@ __all__ = [
     "MatchCollaborator",
     "MatchPlayer",
     "Player",
+    "PlayerAward",
     "RefreshToken",
+    "StreamSession",
     "Team",
+    "TeamMembership",
     "Tournament",
     "TournamentGroup",
     "TournamentStandingSnapshot",

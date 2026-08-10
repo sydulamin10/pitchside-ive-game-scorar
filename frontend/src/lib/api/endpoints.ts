@@ -1,12 +1,16 @@
 /** One typed function per backend route. Nothing in the UI builds a URL itself. */
 
-import { api, clearSession, setSession } from "./client";
+import { api, API_BASE, clearSession, setSession } from "./client";
 import type {
   BracketNode,
+  BroadcastSession,
+  CameraInvite,
+  CareerStats,
   CoinFlipResult,
   DeliveryInput,
   DeliveryLogEntry,
   DeliveryUpdateInput,
+  MatchAwards,
   MatchCreateInput,
   MatchListItem,
   MatchSnapshot,
@@ -16,6 +20,7 @@ import type {
   OverlayState,
   Participant,
   Player,
+  PlayerAward,
   PublicTournament,
   Readiness,
   ScoringResponse,
@@ -23,10 +28,14 @@ import type {
   SpinWheelResult,
   Standings,
   Team,
+  TeamMembership,
   TokenResponse,
   Tournament,
   TournamentFormat,
   User,
+  MediaUploadUrl,
+  PublicClubProfile,
+  PublicPlayerProfile,
 } from "./types";
 
 // -------------------------------------------------------------------- auth
@@ -75,18 +84,144 @@ export const teams = {
     name: string;
     short_name?: string | null;
     primary_color?: string | null;
+    secondary_color?: string | null;
     home_ground?: string | null;
+    logo_url?: string | null;
+    cover_url?: string | null;
+    founded_year?: number | null;
+    description?: string | null;
+    coach_name?: string | null;
+    manager_name?: string | null;
+    owner_label?: string | null;
+    sponsor?: string | null;
+    contact_email?: string | null;
+    contact_phone?: string | null;
+    social_links?: Record<string, string>;
     players?: Array<{ name: string; role?: string }>;
   }) => api.post<Team>("/teams", input),
   update: (id: string, input: Record<string, unknown>) =>
     api.patch<Team>(`/teams/${id}`, input),
   remove: (id: string) => api.delete<Message>(`/teams/${id}`),
-  addPlayer: (teamId: string, input: { name: string; role?: string }) =>
-    api.post<Player>(`/teams/${teamId}/players`, input),
+  addPlayer: (
+    teamId: string,
+    input: {
+      name: string;
+      role?: string;
+      nickname?: string | null;
+      jersey_number?: number | null;
+      photo_url?: string | null;
+      batting_hand?: string | null;
+      bowling_style?: string | null;
+    },
+  ) => api.post<Player>(`/teams/${teamId}/players`, input),
   updatePlayer: (teamId: string, playerId: string, input: Record<string, unknown>) =>
     api.patch<Player>(`/teams/${teamId}/players/${playerId}`, input),
   removePlayer: (teamId: string, playerId: string) =>
     api.delete<Message>(`/teams/${teamId}/players/${playerId}`),
+};
+
+export const media = {
+  uploadUrl: (input: {
+    kind: "team_logo" | "team_cover" | "player_photo" | "player_cover" | "generic";
+    content_type: string;
+    filename?: string;
+    content_length?: number;
+  }) => api.post<MediaUploadUrl>("/media/upload-url", input),
+
+  async uploadFile(
+    file: File,
+    kind: "team_logo" | "team_cover" | "player_photo" | "player_cover" | "generic",
+  ): Promise<string> {
+    const signed = await media.uploadUrl({
+      kind,
+      content_type: file.type || "image/jpeg",
+      filename: file.name,
+      content_length: file.size,
+    });
+    const response = await fetch(signed.upload_url, {
+      method: signed.method,
+      headers: signed.headers,
+      body: file,
+    });
+    if (!response.ok) {
+      throw new Error(`Upload failed (${response.status})`);
+    }
+    return signed.public_url;
+  },
+};
+
+export const profiles = {
+  club: (idOrSlug: string) =>
+    api.get<PublicClubProfile>(`/public/teams/${idOrSlug}`, { auth: false }),
+  player: (idOrSlug: string) =>
+    api.get<PublicPlayerProfile>(`/public/players/${idOrSlug}`, { auth: false }),
+  playerStats: (idOrSlug: string, lastN = 10) =>
+    api.get<CareerStats>(`/public/players/${idOrSlug}/stats`, {
+      auth: false,
+      query: { last_n: lastN },
+    }),
+  playerAwards: (idOrSlug: string) =>
+    api.get<PlayerAward[]>(`/public/players/${idOrSlug}/awards`, { auth: false }),
+  playerQrUrl: (idOrSlug: string) =>
+    `${API_BASE}/public/players/${encodeURIComponent(idOrSlug)}/qr`,
+};
+
+export const memberships = {
+  list: (teamId: string) => api.get<TeamMembership[]>(`/teams/${teamId}/members`),
+  invite: (teamId: string, input: { email: string; role?: string }) =>
+    api.post<TeamMembership>(`/teams/${teamId}/invites`, input),
+  acceptInvite: (token: string) => api.post<TeamMembership>(`/teams/invites/${token}/accept`, {}),
+  requestJoin: (teamId: string) => api.post<TeamMembership>(`/teams/${teamId}/join-requests`, {}),
+  decideRequest: (teamId: string, memberId: string, accept: boolean) =>
+    api.post<TeamMembership>(
+      `/teams/${teamId}/join-requests/${memberId}/${accept ? "accept" : "reject"}`,
+      {},
+    ),
+  setRole: (teamId: string, memberId: string, role: string) =>
+    api.patch<TeamMembership>(`/teams/${teamId}/members/${memberId}`, { role }),
+  remove: (teamId: string, memberId: string) =>
+    api.delete<Message>(`/teams/${teamId}/members/${memberId}`),
+};
+
+export const awards = {
+  list: (teamId: string, playerId: string) =>
+    api.get<PlayerAward[]>(`/teams/${teamId}/players/${playerId}/awards`),
+  create: (
+    teamId: string,
+    playerId: string,
+    input: { kind?: string; title: string; description?: string | null },
+  ) => api.post<PlayerAward>(`/teams/${teamId}/players/${playerId}/awards`, input),
+  remove: (teamId: string, playerId: string, awardId: string) =>
+    api.delete<Message>(`/teams/${teamId}/players/${playerId}/awards/${awardId}`),
+};
+
+export const broadcast = {
+  getActive: (matchId: string) =>
+    api.get<BroadcastSession>(`/matches/${matchId}/stream-sessions/active`),
+  ensure: (matchId: string) =>
+    api.post<BroadcastSession>(`/matches/${matchId}/stream-sessions/ensure`, {}),
+  create: (
+    matchId: string,
+    input: {
+      destination_label?: string | null;
+      rtmp_url?: string | null;
+      stream_key?: string | null;
+      whip_path?: string | null;
+    } = {},
+  ) => api.post<BroadcastSession>(`/matches/${matchId}/stream-sessions`, input),
+  updateDestinations: (
+    matchId: string,
+    input: {
+      destination_label?: string | null;
+      rtmp_url?: string | null;
+      stream_key?: string | null;
+      whip_path?: string | null;
+    },
+  ) => api.patch<BroadcastSession>(`/matches/${matchId}/stream-sessions/active`, input),
+  goLive: (matchId: string) =>
+    api.post<BroadcastSession>(`/matches/${matchId}/stream-sessions/active/go-live`, {}),
+  end: (matchId: string) =>
+    api.post<BroadcastSession>(`/matches/${matchId}/stream-sessions/active/end`, {}),
 };
 
 // ----------------------------------------------------------------- matches
@@ -265,6 +400,40 @@ export const tournaments = {
 export const publicApi = {
   match: (slug: string) => api.public<MatchSnapshot>(`/public/matches/${slug}`),
   overlay: (slug: string) => api.public<OverlayState>(`/public/matches/${slug}/overlay`),
+  awards: (slug: string) => api.public<MatchAwards>(`/public/matches/${slug}/awards`),
+  overlayQrUrl: (
+    slug: string,
+    opts: { design?: string; position?: "bottom" | "top"; origin?: string } = {},
+  ) => {
+    const params = new URLSearchParams();
+    if (opts.design) params.set("design", opts.design);
+    if (opts.position) params.set("position", opts.position);
+    if (opts.origin) params.set("origin", opts.origin);
+    const qs = params.toString();
+    return `${API_BASE}/public/matches/${encodeURIComponent(slug)}/overlay/qr${qs ? `?${qs}` : ""}`;
+  },
+  camera: (slug: string, token: string) =>
+    api.public<CameraInvite>(`/public/matches/${slug}/camera/${token}`),
+  cameraQrUrl: (slug: string, token: string, origin?: string) => {
+    const base = `${API_BASE}/public/matches/${encodeURIComponent(slug)}/camera/${encodeURIComponent(token)}/qr`;
+    if (!origin) return base;
+    return `${base}?origin=${encodeURIComponent(origin)}`;
+  },
+  cameraClaim: (slug: string, token: string) =>
+    api.public<{ status: string }>(`/public/matches/${slug}/camera/${token}/claim`, {
+      method: "POST",
+      body: {},
+    }),
+  cameraGoLive: (slug: string, token: string) =>
+    api.public<{ status: string }>(`/public/matches/${slug}/camera/${token}/go-live`, {
+      method: "POST",
+      body: {},
+    }),
+  cameraEnd: (slug: string, token: string) =>
+    api.public<{ status: string }>(`/public/matches/${slug}/camera/${token}/end`, {
+      method: "POST",
+      body: {},
+    }),
   tournament: (slug: string) => api.public<PublicTournament>(`/public/tournaments/${slug}`),
   standings: (slug: string) => api.public<Standings>(`/public/tournaments/${slug}/standings`),
 };

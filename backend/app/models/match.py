@@ -50,7 +50,8 @@ from app.models.enums import (
 )
 
 if TYPE_CHECKING:
-    from app.models.team import Team
+    from app.models.stream import StreamSession
+    from app.models.team import Player, Team
     from app.models.tournament import Tournament
 
 
@@ -149,6 +150,11 @@ class Match(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     collaborators: Mapped[list[MatchCollaborator]] = relationship(
         back_populates="match", cascade="all, delete-orphan"
     )
+    stream_sessions: Mapped[list[StreamSession]] = relationship(
+        "StreamSession",
+        back_populates="match",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def is_limited_overs(self) -> bool:
@@ -183,6 +189,7 @@ class MatchPlayer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_substitute: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     match: Mapped[Match] = relationship(back_populates="squad")
+    player: Mapped[Player | None] = relationship("Player", lazy="selectin")
 
 
 class MatchCollaborator(UUIDPrimaryKeyMixin, TimestampMixin, Base):

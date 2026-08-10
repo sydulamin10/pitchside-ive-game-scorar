@@ -18,13 +18,19 @@ const Dashboard = lazy(() => import("@/routes/app/Dashboard"));
 const NewMatch = lazy(() => import("@/routes/app/NewMatch"));
 const ScoringConsole = lazy(() => import("@/routes/app/ScoringConsole"));
 const Teams = lazy(() => import("@/routes/app/Teams"));
+const TeamDetail = lazy(() => import("@/routes/app/TeamDetail"));
+const PlayerEdit = lazy(() => import("@/routes/app/PlayerEdit"));
 const Tournaments = lazy(() => import("@/routes/app/Tournaments"));
 const TournamentDetail = lazy(() => import("@/routes/app/TournamentDetail"));
 const Account = lazy(() => import("@/routes/app/Account"));
+const BroadcastStudio = lazy(() => import("@/routes/app/BroadcastStudio"));
 const ToolsPage = lazy(() => import("@/routes/tools/ToolsPage"));
 const PublicMatch = lazy(() => import("@/routes/public/PublicMatch"));
 const PublicTournament = lazy(() => import("@/routes/public/PublicTournament"));
+const PublicClub = lazy(() => import("@/routes/public/PublicClub"));
+const PublicPlayer = lazy(() => import("@/routes/public/PublicPlayer"));
 const Overlay = lazy(() => import("@/routes/public/Overlay"));
+const ExternalCamera = lazy(() => import("@/routes/public/ExternalCamera"));
 const ScoreFeature = lazy(() => import("@/routes/marketing/ScoreFeature"));
 const TournamentFeature = lazy(() => import("@/routes/marketing/TournamentFeature"));
 const Broadcast = lazy(() => import("@/routes/marketing/Broadcast"));
@@ -32,10 +38,15 @@ const StreamKeyGuide = lazy(() => import("@/routes/marketing/StreamKeyGuide"));
 const About = lazy(() => import("@/routes/marketing/About"));
 const Legal = lazy(() => import("@/routes/marketing/Legal"));
 const Changelog = lazy(() => import("@/routes/marketing/Changelog"));
+const InstallApp = lazy(() => import("@/routes/marketing/InstallApp"));
 
 function ScrollToTop() {
   const { pathname } = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  useEffect(() => {
+    // scrollTo's return value must not leak out of the effect — React treats a
+    // returned Promise as a cleanup and then crashes when it tries to call it.
+    window.scrollTo(0, 0);
+  }, [pathname]);
   return null;
 }
 
@@ -65,10 +76,14 @@ export function App() {
           {/* Public scorecards: no chrome, no login, opens on any device. */}
           <Route path="/s/:slug" element={<PublicMatch />} />
           <Route path="/s/:slug/overlay" element={<Overlay />} />
+          <Route path="/s/:slug/camera/:token" element={<ExternalCamera />} />
           <Route path="/t/:slug" element={<PublicTournament />} />
+          <Route path="/club/:slug" element={<PublicClub />} />
+          <Route path="/p/:slug" element={<PublicPlayer />} />
 
           <Route element={<PublicShell />}>
             <Route index element={<Home />} />
+            <Route path="/install" element={<InstallApp />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/features/score" element={<ScoreFeature />} />
@@ -101,7 +116,10 @@ export function App() {
             <Route index element={<Dashboard />} />
             <Route path="matches/new" element={<NewMatch />} />
             <Route path="matches/:matchId" element={<ScoringConsole />} />
+            <Route path="matches/:matchId/broadcast" element={<BroadcastStudio />} />
             <Route path="teams" element={<Teams />} />
+            <Route path="teams/:teamId" element={<TeamDetail />} />
+            <Route path="teams/:teamId/players/:playerId" element={<PlayerEdit />} />
             <Route path="tournaments" element={<Tournaments />} />
             <Route path="tournaments/:tournamentId" element={<TournamentDetail />} />
             <Route path="tools" element={<ToolsPage initial="coin" />} />

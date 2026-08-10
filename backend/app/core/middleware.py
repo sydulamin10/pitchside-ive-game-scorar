@@ -90,7 +90,7 @@ class SecurityHeadersMiddleware:
             ("referrer-policy", "no-referrer"),
             ("cross-origin-opener-policy", "same-origin"),
             ("cross-origin-resource-policy", "same-site"),
-            ("permissions-policy", "camera=(), microphone=(), geolocation=()"),
+            ("permissions-policy", "camera=(self), microphone=(self), geolocation=()"),
             (
                 "content-security-policy",
                 "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
@@ -136,14 +136,21 @@ class BodySizeLimitMiddleware:
         self.app = app
         self.max_bytes = max_bytes
 
+    def _limit_for(self, path: str) -> int:
+        # Local media PUTs carry the image body; allow the configured media ceiling.
+        if "/media/local/" in path:
+            return max(self.max_bytes, settings.MEDIA_MAX_BYTES)
+        return self.max_bytes
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or scope.get("method") in ("GET", "HEAD", "OPTIONS"):
             await self.app(scope, receive, send)
             return
 
+        limit = self._limit_for(scope.get("path", ""))
         declared = Headers(scope=scope).get("content-length")
-        if declared is not None and declared.isdigit() and int(declared) > self.max_bytes:
-            await _too_large(send, self.max_bytes)
+        if declared is not None and declared.isdigit() and int(declared) > limit:
+            await _too_large(send, limit)
             return
 
         received = 0
@@ -154,7 +161,7 @@ class BodySizeLimitMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_bytes:
+                if received > limit:
                     limit_exceeded = True
                     # Signal end-of-stream; the guard below returns 413.
                     return {"type": "http.disconnect"}
@@ -162,7 +169,7 @@ class BodySizeLimitMiddleware:
 
         async def send_wrapper(message: Message) -> None:
             if limit_exceeded and message["type"] == "http.response.start":
-                await _too_large(send, self.max_bytes)
+                await _too_large(send, limit)
                 return
             if limit_exceeded and message["type"] == "http.response.body":
                 return

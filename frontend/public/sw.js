@@ -16,14 +16,23 @@
  *   anything else    passed straight through, untouched
  */
 
-const VERSION = "v1";
+const VERSION = "v3";
 const SHELL_CACHE = `pitchside-shell-${VERSION}`;
 const ASSET_CACHE = `pitchside-assets-${VERSION}`;
 const DATA_CACHE = `pitchside-data-${VERSION}`;
 const KEEP = new Set([SHELL_CACHE, ASSET_CACHE, DATA_CACHE]);
 
 const SHELL_URL = "/index.html";
-const SHELL_FILES = [SHELL_URL, "/", "/manifest.webmanifest", "/icons/seam.svg"];
+const SHELL_FILES = [
+  SHELL_URL,
+  "/",
+  "/app",
+  "/manifest.webmanifest",
+  "/icons/seam.svg",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+];
+
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

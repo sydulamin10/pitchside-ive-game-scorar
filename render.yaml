@@ -1,0 +1,49 @@
+# Render Blueprint — backend only.
+# Dashboard: New → Blueprint → connect this repo, or follow docs/render-deploy.md
+# Frontend stays on cPanel: https://web.odcc.nextframesoft.com
+
+services:
+  - type: web
+    name: pitchside-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /healthz
+    preDeployCommand: alembic upgrade head
+    envVars:
+      - key: ENV
+        value: production
+      - key: LOG_JSON
+        value: "true"
+      - key: OPENAPI_ENABLED
+        value: "false"
+      - key: AUTH_REFRESH_COOKIE_ENABLED
+        value: "false"
+      - key: ALLOW_REGISTRATION
+        value: "true"
+      - key: METRICS_ENABLED
+        value: "false"
+      - key: MEDIA_BACKEND
+        value: local
+      - key: MEDIA_LOCAL_DIR
+        value: /tmp/pitchside-media
+      - key: PUBLIC_WEB_URL
+        value: https://web.odcc.nextframesoft.com
+      - key: CORS_ORIGINS
+        value: https://web.odcc.nextframesoft.com
+      # Set these in the Render dashboard (secrets) — do not commit real values:
+      # SECRET_KEY, DATABASE_URL, REDIS_URL, PUBLIC_API_URL, ALLOWED_HOSTS,
+      # MEDIA_PUBLIC_BASE_URL
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: MEDIA_PUBLIC_BASE_URL
+        sync: false

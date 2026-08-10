@@ -25,8 +25,9 @@ from app.schemas.match import (
     MatchUpdate,
     SquadUpdate,
 )
-from app.services import match_service, scoring_service
+from app.services import match_service, scoring_service, stream_session_service
 from app.services.match_query import build_snapshot, load_match, load_snapshot
+from app.schemas.stream import StreamDestinationUpdate, StreamSessionCreate
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
@@ -380,6 +381,113 @@ def _score_line(match: Match) -> str | None:
     if not parts:
         return None
     return " v ".join(parts)
+
+
+# --------------------------------------------------------------- stream sessions
+
+
+async def _session_payload(
+    session: SessionDep, row: Any, *, stream_key: str | None = None
+) -> dict[str, Any]:
+    from app.models.match import Match
+
+    payload = stream_session_service.session_to_dict(row, stream_key=stream_key)
+    slug = (
+        await session.execute(select(Match.public_slug).where(Match.id == row.match_id).limit(1))
+    ).scalar_one_or_none()
+    if slug:
+        stream_session_service.attach_camera_url(payload, slug)
+    return payload
+
+
+@router.post(
+    "/{match_id}/stream-sessions",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(write_rate_limit)],
+    summary="Create a stream session",
+    response_model=None,
+)
+async def create_stream_session(
+    match_id: uuid.UUID,
+    payload: StreamSessionCreate,
+    session: SessionDep,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    row, stream_key = await stream_session_service.create_session(
+        session, user, match_id, payload
+    )
+    await session.commit()
+    return await _session_payload(session, row, stream_key=stream_key)
+
+
+@router.post(
+    "/{match_id}/stream-sessions/ensure",
+    dependencies=[Depends(write_rate_limit)],
+    summary="Ensure an active stream session (for Go Live QR)",
+    response_model=None,
+)
+async def ensure_stream_session(
+    match_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> dict[str, Any]:
+    row, stream_key = await stream_session_service.ensure_session(session, user, match_id)
+    await session.commit()
+    return await _session_payload(session, row, stream_key=stream_key)
+
+
+@router.get(
+    "/{match_id}/stream-sessions/active",
+    summary="Get the active stream session",
+    response_model=None,
+)
+async def get_active_stream_session(
+    match_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> dict[str, Any]:
+    row = await stream_session_service.get_session_for_match(session, user, match_id)
+    return await _session_payload(session, row)
+
+
+@router.patch(
+    "/{match_id}/stream-sessions/active",
+    summary="Update stream destinations",
+    response_model=None,
+)
+async def update_stream_destinations(
+    match_id: uuid.UUID,
+    payload: StreamDestinationUpdate,
+    session: SessionDep,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    row, stream_key = await stream_session_service.update_destinations(
+        session, user, match_id, payload
+    )
+    await session.commit()
+    return await _session_payload(session, row, stream_key=stream_key)
+
+
+@router.post(
+    "/{match_id}/stream-sessions/active/go-live",
+    summary="Mark the stream session live",
+    response_model=None,
+)
+async def go_live_stream_session(
+    match_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> dict[str, Any]:
+    row = await stream_session_service.go_live(session, user, match_id)
+    await session.commit()
+    return await _session_payload(session, row)
+
+
+@router.post(
+    "/{match_id}/stream-sessions/active/end",
+    summary="End the active stream session",
+    response_model=None,
+)
+async def end_stream_session(
+    match_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> dict[str, Any]:
+    row = await stream_session_service.end_session(session, user, match_id)
+    await session.commit()
+    return await _session_payload(session, row)
 
 
 @router.head("/{match_id}", include_in_schema=False)

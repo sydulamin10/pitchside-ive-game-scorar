@@ -186,6 +186,51 @@ class CollaboratorRole(StrEnum):
     VIEWER = "viewer"
 
 
+class AwardKind(StrEnum):
+    TROPHY = "trophy"
+    CERTIFICATE = "certificate"
+    ACHIEVEMENT = "achievement"
+
+
+class TeamMembershipRole(StrEnum):
+    OWNER = "owner"
+    MANAGER = "manager"
+    COACH = "coach"
+    CAPTAIN = "captain"
+    VICE_CAPTAIN = "vice_captain"
+    PLAYER = "player"
+
+
+#: Alias used by older slice drafts — prefer TeamMembershipRole.
+TeamMemberRole = TeamMembershipRole
+
+
+#: Roles that may manage roster, awards, and membership invites.
+TEAM_MANAGE_ROLES: frozenset[TeamMembershipRole] = frozenset(
+    {TeamMembershipRole.OWNER, TeamMembershipRole.MANAGER}
+)
+
+
+class MembershipStatus(StrEnum):
+    ACTIVE = "active"
+    INVITED = "invited"
+    REQUESTED = "requested"
+    REJECTED = "rejected"
+    LEFT = "left"
+
+
+#: Alias used by older slice drafts — prefer MembershipStatus.
+TeamMembershipStatus = MembershipStatus
+
+
+class StreamSessionStatus(StrEnum):
+    IDLE = "idle"
+    PREVIEW = "preview"
+    LIVE = "live"
+    ENDED = "ended"
+    ERROR = "error"
+
+
 class AuditAction(StrEnum):
     USER_REGISTERED = "user.registered"
     USER_LOGIN = "user.login"

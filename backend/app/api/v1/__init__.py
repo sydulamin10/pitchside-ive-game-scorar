@@ -8,6 +8,7 @@ from app.api.v1 import (
     auth,
     health,
     matches,
+    media,
     public,
     scoring,
     stream,
@@ -24,6 +25,7 @@ api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(users.router)
 api_router.include_router(teams.router)
+api_router.include_router(media.router)
 api_router.include_router(matches.router)
 api_router.include_router(scoring.router)
 api_router.include_router(tournaments.router)

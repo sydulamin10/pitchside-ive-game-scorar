@@ -91,7 +91,16 @@ export function ScoreBoard({ state, title, live = false, className }: ScoreBoard
 
       <div className="flex flex-wrap items-end gap-x-5 gap-y-4 px-4 py-4">
         <div className="flex flex-col gap-1.5">
-          <FlapText text={battingName} />
+          <div className="flex items-center gap-2">
+            {state.batting_team?.logo_url ? (
+              <img
+                src={state.batting_team.logo_url}
+                alt=""
+                className="h-7 w-7 rounded-[2px] object-cover"
+              />
+            ) : null}
+            <FlapText text={battingName} />
+          </div>
           <div className="flex items-end gap-1 text-4xl leading-none sm:text-5xl">
             <FlapNumber
               value={score?.runs ?? 0}
@@ -159,20 +168,36 @@ export function ScoreBoard({ state, title, live = false, className }: ScoreBoard
         <div className="flex flex-col gap-1">
           {[state.striker, state.non_striker].map((batter, index) =>
             batter ? (
-              <p key={batter.player_id} className="font-sans text-sm text-chalk">
-                <span className={cn(index === 0 && "font-semibold")}>
-                  {batter.name}
-                  {index === 0 && <span className="text-flip"> *</span>}
-                </span>{" "}
-                <span className="tabular text-willow-soft">
-                  {batter.runs} ({batter.balls_faced})
-                </span>
-                {(batter.fours > 0 || batter.sixes > 0) && (
-                  <span className="tabular text-willow">
-                    {" "}
-                    · {batter.fours}×4 {batter.sixes}×6
+              <p key={batter.player_id} className="flex items-center gap-2 font-sans text-sm text-chalk">
+                {batter.photo_url ? (
+                  <img
+                    src={batter.photo_url}
+                    alt=""
+                    className="h-7 w-7 rounded-full object-cover"
+                  />
+                ) : state.batting_team?.logo_url ? (
+                  <img
+                    src={state.batting_team.logo_url}
+                    alt=""
+                    className="h-7 w-7 rounded-[2px] object-cover opacity-80"
+                  />
+                ) : null}
+                <span>
+                  <span className={cn(index === 0 && "font-semibold")}>
+                    {batter.jersey_number != null ? `#${batter.jersey_number} ` : ""}
+                    {batter.name}
+                    {index === 0 && <span className="text-flip"> *</span>}
+                  </span>{" "}
+                  <span className="tabular text-willow-soft">
+                    {batter.runs} ({batter.balls_faced})
                   </span>
-                )}
+                  {(batter.fours > 0 || batter.sixes > 0) && (
+                    <span className="tabular text-willow">
+                      {" "}
+                      · {batter.fours}×4 {batter.sixes}×6
+                    </span>
+                  )}
+                </span>
               </p>
             ) : null,
           )}
@@ -187,17 +212,27 @@ export function ScoreBoard({ state, title, live = false, className }: ScoreBoard
         </div>
 
         {state.bowler && (
-          <div className="sm:text-right">
-            <p className="font-sans text-sm text-chalk">
-              {state.bowler.name}{" "}
-              <span className="tabular text-willow-soft">
-                {state.bowler.wickets}/{state.bowler.runs_conceded}
-              </span>
-            </p>
-            <p className="font-sans text-xs text-willow tabular">
-              {state.bowler.overs_text} ov · econ {state.bowler.economy.toFixed(2)}
-              {state.bowler.maidens > 0 && ` · ${state.bowler.maidens} md`}
-            </p>
+          <div className="flex items-center gap-2 sm:justify-end sm:text-right">
+            {state.bowler.photo_url ? (
+              <img
+                src={state.bowler.photo_url}
+                alt=""
+                className="h-7 w-7 rounded-full object-cover sm:order-2"
+              />
+            ) : null}
+            <div className="sm:order-1">
+              <p className="font-sans text-sm text-chalk">
+                {state.bowler.jersey_number != null ? `#${state.bowler.jersey_number} ` : ""}
+                {state.bowler.name}{" "}
+                <span className="tabular text-willow-soft">
+                  {state.bowler.wickets}/{state.bowler.runs_conceded}
+                </span>
+              </p>
+              <p className="font-sans text-xs text-willow tabular">
+                {state.bowler.overs_text} ov · econ {state.bowler.economy.toFixed(2)}
+                {state.bowler.maidens > 0 && ` · ${state.bowler.maidens} md`}
+              </p>
+            </div>
           </div>
         )}
       </div>

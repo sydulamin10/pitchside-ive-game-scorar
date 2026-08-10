@@ -1,0 +1,50 @@
+# Place this file in the web.odcc.nextframesoft.com document root
+# alongside the contents of frontend/dist/ (index.html, assets/, icons/, …).
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Force HTTPS
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Existing files and directories are served as-is
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # SPA fallback
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Hashed Vite assets — immutable
+<IfModule mod_headers.c>
+  <FilesMatch "\.(?:js|css|woff2?)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Service worker must never stick to an old deploy
+  <Files "sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
+
+  <Files "manifest.webmanifest">
+    Header set Cache-Control "public, max-age=3600"
+  </Files>
+
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=()"
+  Header set Cross-Origin-Opener-Policy "same-origin"
+
+  # Default: no framing. Overlay path opts out below via unset when possible.
+  Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>
+
+# Broadcast overlays are embedded in OBS / Facebook / YouTube Browser Source.
+<IfModule mod_headers.c>
+  <If "%{REQUEST_URI} =~ m#^/s/[^/]+/overlay#">
+    Header unset X-Frame-Options
+    Header unset Cross-Origin-Opener-Policy
+  </If>
+</IfModule>

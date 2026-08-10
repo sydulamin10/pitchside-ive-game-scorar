@@ -13,6 +13,8 @@ import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 
 import { ScoreBoard } from "@/components/board/ScoreBoard";
+import { MatchAwardsPanel } from "@/components/broadcast/MatchAwardsPanel";
+import { MatchResultShare } from "@/components/broadcast/MatchResultShare";
 import { SeamMark } from "@/components/layout/Brand";
 import { InningsScorecard } from "@/components/ledger/Scorecard";
 import { Button } from "@/components/ui/Button";
@@ -34,7 +36,14 @@ export default function PublicMatch() {
     staleTime: 10_000,
   });
 
-  const stream = useMatchStream(slug, { onResync: () => void scorecard.refetch() });
+  const awardsQuery = useQuery({
+    queryKey: ["public-match-awards", slug],
+    enabled: Boolean(slug) && scorecard.data?.match.status === "completed",
+    queryFn: () => publicApi.awards(slug!),
+    staleTime: 30_000,
+  });
+
+  const stream = useMatchStream(slug, { onResync: () => void scorecard.refetch(), pollMs: 2_000 });
 
   const version = scorecard.data?.match.state_version ?? 0;
   const liveVersion = stream.state?.state_version ?? 0;
@@ -168,6 +177,13 @@ export default function PublicMatch() {
               <InningsScorecard innings={entry} />
             </section>
           ))
+        )}
+
+        {awardsQuery.data && (
+          <>
+            <MatchResultShare snapshot={snapshot} awards={awardsQuery.data} />
+            <MatchAwardsPanel awards={awardsQuery.data} />
+          </>
         )}
 
         <Seam />

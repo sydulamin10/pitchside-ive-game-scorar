@@ -1,0 +1,21 @@
+# Place this file in the api.odcc.nextframesoft.com *document root*
+# (the folder that currently only shows cgi-bin — NOT ~/pitchside-api).
+# Rename to .htaccess
+#
+# This host runs LiteSpeed. [P] reverse-proxy must be allowed for the account.
+# If you still get 404 after uvicorn is running, ask support to enable
+# "ProxyPass / reverse proxy" or map the subdomain to 127.0.0.1:8000.
+
+RewriteEngine On
+
+# Force HTTPS
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Do not proxy real files in the docroot (cgi-bin, etc.)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Reverse-proxy everything else to uvicorn
+RewriteRule ^(.*)$ http://127.0.0.1:8000/$1 [P,L]

@@ -1,0 +1,17 @@
+# Use this as .htaccess in ~/api.odcc.nextframesoft.com when LiteSpeed
+# returns 403 for RewriteRule [P] (proxy disabled on the account).
+#
+# Also upload proxy.php next to this file.
+
+RewriteEngine On
+
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Real files (proxy.php, cgi-bin, .well-known) served normally
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Everything else → PHP forwarder → uvicorn on :8000
+RewriteRule ^(.*)$ proxy.php [QSA,L]

@@ -1,16 +1,18 @@
 {
-  "name": "Pitchside — cricket scoring",
+  "name": "Pitchside",
   "short_name": "Pitchside",
   "description": "Score any cricket match ball by ball from your phone, online or off, and share one live scorecard link.",
   "id": "/",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#12261E",
   "theme_color": "#12261E",
   "lang": "en",
   "dir": "ltr",
+  "prefer_related_applications": false,
   "categories": ["sports", "productivity", "utilities"],
   "icons": [
     {
@@ -30,12 +32,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/icons/seam.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
     }
   ],
   "shortcuts": [

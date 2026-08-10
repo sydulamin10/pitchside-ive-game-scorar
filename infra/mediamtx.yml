@@ -1,0 +1,23 @@
+# MediaMTX — local WHIP / RTMP ingest for Pitchside camera streams.
+# Docs: https://github.com/bluenviron/mediamtx
+
+logLevel: info
+logDestinations: [stdout]
+
+rtsp: yes
+rtspAddress: :8554
+
+rtmp: yes
+rtmpAddress: :1935
+
+hls: yes
+hlsAddress: :8888
+
+webrtc: yes
+webrtcAddress: :8889
+# Allow WHIP publish from the browser camera path.
+webrtcICEServers2: []
+
+# Paths are created on demand when a publisher connects.
+paths:
+  all_others:

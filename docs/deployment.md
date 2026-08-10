@@ -4,6 +4,12 @@ Two containers and two managed services. The API is stateless, so it scales
 horizontally; live updates stay in step because fan-out goes through Redis rather
 than through process memory.
 
+For **cPanel + Setup Python App** (static web subdomain + uvicorn API), follow
+[cpanel-deploy.md](./cpanel-deploy.md) and the templates in [`deploy/cpanel/`](../deploy/cpanel/).
+
+Recommended when cPanel blocks outbound Postgres/Redis: host the **API on Render**
+([render-deploy.md](./render-deploy.md)) and keep only the static web app on cPanel.
+
 ```
             ┌────────────┐        ┌──────────────────┐
   browser ──│  web (nginx)│        │ Neon Postgres    │

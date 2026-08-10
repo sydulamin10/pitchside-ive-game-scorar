@@ -182,18 +182,51 @@ class MatchSnapshot:
 
     def compact(self) -> dict[str, Any]:
         """Small payload for realtime frames and the broadcast overlay."""
+        match = self.match
+        toss_winner = None
+        if match.toss_winner_team_id:
+            if match.toss_winner_team_id == match.team_a_id:
+                toss_winner = _team_dict(match.team_a)
+            elif match.toss_winner_team_id == match.team_b_id:
+                toss_winner = _team_dict(match.team_b)
+
+        meta = {
+            "title": match.title,
+            "venue": match.venue,
+            "city": match.city,
+            "tournament": (
+                {
+                    "id": str(match.tournament.id),
+                    "name": match.tournament.name,
+                    "slug": match.tournament.public_slug,
+                    "round": match.tournament_round,
+                }
+                if match.tournament
+                else None
+            ),
+            "toss": {
+                "winner": toss_winner,
+                "winner_team_id": str(match.toss_winner_team_id)
+                if match.toss_winner_team_id
+                else None,
+                "decision": match.toss_decision.value if match.toss_decision else None,
+            },
+        }
+
         current = self.current
         if current is None:
             return {
-                "status": self.match.status.value,
-                "state_version": self.match.state_version,
-                "title": self.match.title,
-                "result_summary": self.match.result_summary or self.outcome.summary,
+                "status": match.status.value,
+                "state_version": match.state_version,
+                "title": match.title,
+                "result_summary": match.result_summary or self.outcome.summary,
+                **meta,
             }
         state = current.state
+        photo_map = _photo_map(self.squads)
         return {
-            "status": self.match.status.value,
-            "state_version": self.match.state_version,
+            "status": match.status.value,
+            "state_version": match.state_version,
             "innings_id": str(current.innings.id),
             "innings_sequence": current.innings.sequence,
             "batting_team": _team_dict(current.batting_team),
@@ -210,15 +243,16 @@ class MatchSnapshot:
                 "extras_total": state.extras.total,
                 "is_free_hit": state.is_free_hit,
             },
-            "striker": _batter_line(state, state.striker_id),
-            "non_striker": _batter_line(state, state.non_striker_id),
-            "bowler": _bowler_line(state, state.current_bowler_id),
+            "striker": _batter_line(state, state.striker_id, photo_map),
+            "non_striker": _batter_line(state, state.non_striker_id, photo_map),
+            "bowler": _bowler_line(state, state.current_bowler_id, photo_map),
             "current_partnership": (
                 state.current_partnership.to_dict() if state.current_partnership else None
             ),
             "recent_balls": [b.to_dict() for b in state.timeline[-8:]],
-            "result_summary": self.match.result_summary or self.outcome.summary,
+            "result_summary": match.result_summary or self.outcome.summary,
             "next_action": state.next_action.value,
+            **meta,
         }
 
 
@@ -241,7 +275,7 @@ async def load_match(
             joinedload(Match.team_a),
             joinedload(Match.team_b),
             joinedload(Match.tournament),
-            selectinload(Match.squad),
+            selectinload(Match.squad).selectinload(MatchPlayer.player),
             selectinload(Match.collaborators),
             selectinload(Match.innings).selectinload(Innings.deliveries),
             selectinload(Match.innings).selectinload(Innings.summary),
@@ -414,6 +448,9 @@ def _team_dict(team: Team) -> dict[str, Any]:
 
 
 def _squad_member_dict(member: MatchPlayer) -> dict[str, Any]:
+    photo_url = None
+    if member.player is not None:
+        photo_url = member.player.photo_url
     return {
         "id": str(member.id),
         "player_id": str(member.player_id) if member.player_id else None,
@@ -424,15 +461,31 @@ def _squad_member_dict(member: MatchPlayer) -> dict[str, Any]:
         "is_wicket_keeper": member.is_wicket_keeper,
         "is_playing": member.is_playing,
         "is_substitute": member.is_substitute,
+        "photo_url": photo_url,
     }
 
 
-def _batter_line(state: InningsState, player_id: str | None) -> dict[str, Any] | None:
+def _photo_map(squads: dict[str, list[MatchPlayer]]) -> dict[str, dict[str, Any]]:
+    mapping: dict[str, dict[str, Any]] = {}
+    for members in squads.values():
+        for member in members:
+            player = member.player
+            mapping[str(member.id)] = {
+                "photo_url": player.photo_url if player is not None else None,
+                "jersey_number": player.jersey_number if player is not None else None,
+            }
+    return mapping
+
+
+def _batter_line(
+    state: InningsState, player_id: str | None, photo_map: dict[str, dict[str, Any]] | None = None
+) -> dict[str, Any] | None:
     if not player_id:
         return None
     batter = state.batter(player_id)
     if batter is None:
         return None
+    meta = (photo_map or {}).get(player_id) or {}
     return {
         "player_id": batter.player_id,
         "name": batter.name,
@@ -441,15 +494,20 @@ def _batter_line(state: InningsState, player_id: str | None) -> dict[str, Any] |
         "fours": batter.fours,
         "sixes": batter.sixes,
         "strike_rate": batter.strike_rate,
+        "photo_url": meta.get("photo_url"),
+        "jersey_number": meta.get("jersey_number"),
     }
 
 
-def _bowler_line(state: InningsState, player_id: str | None) -> dict[str, Any] | None:
+def _bowler_line(
+    state: InningsState, player_id: str | None, photo_map: dict[str, dict[str, Any]] | None = None
+) -> dict[str, Any] | None:
     if not player_id:
         return None
     bowler = state.bowler(player_id)
     if bowler is None:
         return None
+    meta = (photo_map or {}).get(player_id) or {}
     return {
         "player_id": bowler.player_id,
         "name": bowler.name,
@@ -458,6 +516,8 @@ def _bowler_line(state: InningsState, player_id: str | None) -> dict[str, Any] |
         "wickets": bowler.wickets,
         "economy": bowler.economy,
         "maidens": bowler.maidens,
+        "photo_url": meta.get("photo_url"),
+        "jersey_number": meta.get("jersey_number"),
     }
 
 
