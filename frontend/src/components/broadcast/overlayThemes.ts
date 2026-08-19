@@ -32,6 +32,31 @@ export const OVERLAY_DESIGNS = [
     blurb: "Need runs strip · striker arrow · dual logos",
   },
   {
+    id: "modern",
+    label: "Modern Flat",
+    blurb: "Flat navy strip · mono score · soft pills",
+  },
+  {
+    id: "premium",
+    label: "Premium Gold",
+    blurb: "Dark ink · gold accents · crest logos",
+  },
+  {
+    id: "dark",
+    label: "Dark Night",
+    blurb: "Near-black bar · neon score · over dots",
+  },
+  {
+    id: "clean",
+    label: "Clean White",
+    blurb: "White panels · thin rules · quiet type",
+  },
+  {
+    id: "tournament",
+    label: "Tournament",
+    blurb: "Bold center block · dual flanks · event feel",
+  },
+  {
     id: "minimal",
     label: "Minimal",
     blurb: "Compact score only (portrait-friendly)",

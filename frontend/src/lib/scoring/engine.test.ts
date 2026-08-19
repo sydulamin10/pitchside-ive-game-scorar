@@ -172,3 +172,79 @@ describe("the engine before a ball is bowled", () => {
     }
   });
 });
+
+describe("mid-over bowler change and crease override", () => {
+  it("allows a new bowler to finish an over without resetting ball count", () => {
+    const { rules, batting, bowling } = caseSetup(spec.cases[0]!);
+    const events = [0, 1, 2, 3].map((i) =>
+      makeDelivery({
+        id: `d${i + 1}`,
+        sequence: i + 1,
+        striker_id: "a1",
+        non_striker_id: "a2",
+        bowler_id: "p1",
+        batter_runs: 0,
+      }),
+    );
+    const mid = buildInningsState(rules, batting, bowling, events);
+    expect(mid.overs_text).toBe("0.4");
+    expect(mid.current_bowler_id).toBe("p1");
+
+    const next = makeDelivery({
+      id: "d5",
+      sequence: 5,
+      striker_id: "a1",
+      non_striker_id: "a2",
+      bowler_id: "p2",
+      batter_runs: 1,
+    });
+    expect(() => validateDelivery(mid, next, rules, batting, bowling)).not.toThrow();
+
+    const final = buildInningsState(rules, batting, bowling, [
+      ...events,
+      next,
+      makeDelivery({
+        id: "d6",
+        sequence: 6,
+        striker_id: "a2",
+        non_striker_id: "a1",
+        bowler_id: "p2",
+        batter_runs: 0,
+      }),
+    ]);
+    expect(final.overs_text).toBe("1.0");
+    expect(final.bowling.find((b) => b.player_id === "p1")?.balls_bowled).toBe(4);
+    expect(final.bowling.find((b) => b.player_id === "p2")?.balls_bowled).toBe(2);
+  });
+
+  it("applies a crease swap after a checkpoint without changing prior deliveries", () => {
+    const { rules, batting, bowling } = caseSetup(spec.cases[0]!);
+    const events = [
+      makeDelivery({
+        id: "d1",
+        sequence: 1,
+        striker_id: "a1",
+        non_striker_id: "a2",
+        bowler_id: "p1",
+        batter_runs: 1,
+      }),
+      makeDelivery({
+        id: "d2",
+        sequence: 2,
+        striker_id: "a2",
+        non_striker_id: "a1",
+        bowler_id: "p1",
+        batter_runs: 0,
+      }),
+    ];
+    const swapped = buildInningsState(rules, batting, bowling, events, {
+      after_sequence: 2,
+      striker_id: "a1",
+      non_striker_id: "a2",
+    });
+    expect(swapped.striker_id).toBe("a1");
+    expect(swapped.non_striker_id).toBe("a2");
+    expect(events[0]!.striker_id).toBe("a1");
+    expect(events[1]!.striker_id).toBe("a2");
+  });
+});

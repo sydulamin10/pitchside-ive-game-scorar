@@ -1,28 +1,44 @@
 /**
- * Draws Pitchside PWA icons — cricket ball on pitch green (no image library).
+ * Draws ODCC LIVE PWA icons — cricket ball + wordmark on pitch green (no image library).
  *
  * Usage: node scripts/generate-icons.mjs
  */
 
 import { deflateSync } from "node:zlib";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, copyFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "frontend", "public", "icons");
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const OUT_DIR = join(ROOT, "frontend", "public", "icons");
+const BRANDING_DIR = join(ROOT, "frontend", "public", "branding");
 
 const PITCH = [0x12, 0x26, 0x1e];
-const BALL = [0xc9, 0x4a, 0x2a]; // cricket-leather red
+const BALL = [0xc9, 0x4a, 0x2a];
 const BALL_SHADOW = [0x8f, 0x32, 0x1c];
-const STITCH = [0xf4, 0xee, 0xe4]; // cream seam
-const HIGHLIGHT = [0xe9, 0xa6, 0x3c]; // brand amber accent ring
+const STITCH = [0xf4, 0xee, 0xe4];
+const HIGHLIGHT = [0xe9, 0xa6, 0x3c];
+const CHALK = [0xf4, 0xee, 0xe4];
+const AMBER = [0xe9, 0xa6, 0x3c];
 
 const TARGETS = [
-  { file: "icon-192.png", size: 192, ballRadius: 0.36 },
-  { file: "icon-512.png", size: 512, ballRadius: 0.36 },
-  { file: "icon-maskable-512.png", size: 512, ballRadius: 0.3 },
-  { file: "apple-touch-icon.png", size: 180, ballRadius: 0.34 },
+  { file: "icon-192.png", size: 192, ballRadius: 0.22 },
+  { file: "icon-512.png", size: 512, ballRadius: 0.22 },
+  { file: "icon-maskable-512.png", size: 512, ballRadius: 0.18 },
+  { file: "apple-touch-icon.png", size: 180, ballRadius: 0.2 },
 ];
+
+/** 5×7 uppercase bitmap glyphs for ODCC / LIVE */
+const GLYPHS = {
+  O: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+  D: ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+  C: ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+  L: ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+  I: ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
+  V: ["10001", "10001", "10001", "10001", "01010", "01010", "00100"],
+  E: ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+  " ": ["00000", "00000", "00000", "00000", "00000", "00000", "00000"],
+};
 
 function createCanvas(size) {
   return {
@@ -98,39 +114,60 @@ function strokePath(canvas, point, width, color, { dashes = 0 } = {}) {
   }
 }
 
+function drawText(canvas, text, cx, baselineY, pixel, color, tracking = 1) {
+  const rows = 7;
+  const cols = 5;
+  const letterW = cols * pixel;
+  const gap = Math.max(1, Math.round(pixel * tracking));
+  const totalW = text.length * letterW + (text.length - 1) * gap;
+  let x0 = Math.round(cx - totalW / 2);
+  for (const ch of text) {
+    const glyph = GLYPHS[ch] ?? GLYPHS[" "];
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        if (glyph[row][col] !== "1") continue;
+        const px = x0 + col * pixel;
+        const py = baselineY - (rows - row) * pixel;
+        for (let dy = 0; dy < pixel; dy += 1) {
+          for (let dx = 0; dx < pixel; dx += 1) {
+            setPixel(canvas, px + dx, py + dy, color, 1);
+          }
+        }
+      }
+    }
+    x0 += letterW + gap;
+  }
+}
+
 function drawMark(size, ballRadius) {
   const canvas = createCanvas(size);
   fillBackground(canvas);
   const centre = size / 2;
+  const ballCy = size * 0.36;
   const radius = size * ballRadius;
-  const stitch = Math.max(1.6, size * 0.028);
+  const stitch = Math.max(1.4, size * 0.018);
 
-  // Soft shadow under the ball
-  fillCircle(canvas, centre + size * 0.02, centre + size * 0.03, radius * 1.02, BALL_SHADOW);
-  // Leather ball
-  fillCircle(canvas, centre, centre, radius, BALL);
-  // Subtle highlight arc (top-left)
+  fillCircle(canvas, centre + size * 0.012, ballCy + size * 0.018, radius * 1.02, BALL_SHADOW);
+  fillCircle(canvas, centre, ballCy, radius, BALL);
   strokePath(
     canvas,
     (t) => {
       const angle = -2.4 + t * 1.1;
       const r = radius * 0.72;
-      return [centre + r * Math.cos(angle), centre + r * Math.sin(angle)];
+      return [centre + r * Math.cos(angle), ballCy + r * Math.sin(angle)];
     },
-    stitch * 1.4,
+    stitch * 1.3,
     HIGHLIGHT,
   );
-  // Outer rim
   strokePath(
     canvas,
     (t) => {
       const angle = t * Math.PI * 2;
-      return [centre + radius * Math.cos(angle), centre + radius * Math.sin(angle)];
+      return [centre + radius * Math.cos(angle), ballCy + radius * Math.sin(angle)];
     },
-    stitch * 0.7,
+    stitch * 0.65,
     BALL_SHADOW,
   );
-  // Classic dual seams
   const bulge = radius * 0.55;
   const reach = 1.05;
   for (const side of [-1, 1]) {
@@ -138,13 +175,21 @@ function drawMark(size, ballRadius) {
       canvas,
       (t) => {
         const angle = (t * 2 - 1) * reach;
-        return [centre + side * bulge * Math.cos(angle), centre + radius * 0.92 * Math.sin(angle)];
+        return [
+          centre + side * bulge * Math.cos(angle),
+          ballCy + radius * 0.92 * Math.sin(angle),
+        ];
       },
       stitch,
       STITCH,
-      { dashes: 13 },
+      { dashes: 11 },
     );
   }
+
+  const odccPixel = Math.max(2, Math.round(size * 0.028));
+  const livePixel = Math.max(2, Math.round(size * 0.018));
+  drawText(canvas, "ODCC", centre, size * 0.72, odccPixel, CHALK, 1.15);
+  drawText(canvas, "LIVE", centre, size * 0.86, livePixel, AMBER, 1.35);
 
   return canvas;
 }
@@ -210,6 +255,8 @@ function encodePng(pixels, size) {
 }
 
 mkdirSync(OUT_DIR, { recursive: true });
+mkdirSync(BRANDING_DIR, { recursive: true });
+
 for (const target of TARGETS) {
   const canvas = drawMark(target.size, target.ballRadius);
   const png = encodePng(toRgba(canvas), target.size);
@@ -217,17 +264,19 @@ for (const target of TARGETS) {
   process.stdout.write(`${target.file}  ${target.size}px  ${(png.length / 1024).toFixed(1)} kB\n`);
 }
 
-// Favicon-friendly SVG mark (filled ball)
-writeFileSync(
-  join(OUT_DIR, "seam.svg"),
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Pitchside">
+const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ODCC LIVE">
   <rect width="64" height="64" rx="14" fill="#12261E"/>
-  <circle cx="33" cy="34" r="22" fill="#8F321C"/>
-  <circle cx="32" cy="32" r="21.5" fill="#C94A2A"/>
-  <path d="M18 20c6 10 6 22 0 32" fill="none" stroke="#F4EEE4" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3.2 3.6"/>
-  <path d="M46 20c-6 10-6 22 0 32" fill="none" stroke="#F4EEE4" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3.2 3.6"/>
-  <path d="M22 18c5 2 10 2 16 0" fill="none" stroke="#E9A63C" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="33" cy="28" r="16" fill="#8F321C"/>
+  <circle cx="32" cy="26" r="15.5" fill="#C94A2A"/>
+  <path d="M22 18c4 7 4 15 0 22" fill="none" stroke="#F4EEE4" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="2.4 2.8"/>
+  <path d="M42 18c-4 7-4 15 0 22" fill="none" stroke="#F4EEE4" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="2.4 2.8"/>
+  <path d="M24 16c4 1.5 8 1.5 12 0" fill="none" stroke="#E9A63C" stroke-width="1.5" stroke-linecap="round" opacity="0.85"/>
+  <text x="32" y="54" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="800" letter-spacing="1.5" fill="#F4EEE4">ODCC</text>
 </svg>
-`,
-);
+`;
+writeFileSync(join(OUT_DIR, "seam.svg"), faviconSvg);
 process.stdout.write("seam.svg  updated\n");
+
+// Keep a replaceable branding copy of the favicon-sized mark too.
+copyFileSync(join(OUT_DIR, "seam.svg"), join(BRANDING_DIR, "odcc-live-favicon.svg"));
+process.stdout.write("branding/odcc-live-favicon.svg  copied\n");

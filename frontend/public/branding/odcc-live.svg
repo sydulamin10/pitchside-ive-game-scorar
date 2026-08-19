@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ODCC LIVE">
+  <defs>
+    <linearGradient id="pitch" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#163528"/>
+      <stop offset="100%" stop-color="#0D1F18"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#pitch)"/>
+  <!-- cricket ball -->
+  <circle cx="256" cy="198" r="92" fill="#8F321C"/>
+  <circle cx="252" cy="190" r="88" fill="#C94A2A"/>
+  <path d="M196 142c24 40 24 88 0 128" fill="none" stroke="#F4EEE4" stroke-width="8" stroke-linecap="round" stroke-dasharray="10 12"/>
+  <path d="M308 142c-24 40-24 88 0 128" fill="none" stroke="#F4EEE4" stroke-width="8" stroke-linecap="round" stroke-dasharray="10 12"/>
+  <path d="M210 132c22 8 44 8 68 0" fill="none" stroke="#E9A63C" stroke-width="7" stroke-linecap="round" opacity="0.9"/>
+  <!-- wordmark -->
+  <text x="256" y="348" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="72" font-weight="800" letter-spacing="6" fill="#F4EEE4">ODCC</text>
+  <text x="256" y="408" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="36" font-weight="700" letter-spacing="14" fill="#E9A63C">LIVE</text>
+</svg>

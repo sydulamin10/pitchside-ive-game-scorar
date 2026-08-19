@@ -128,14 +128,15 @@ export function EventGraphics({ state }: { state: CompactState | null }) {
 
   if (!kind) return null;
 
+  // Safe zone: upper third / top-right so graphics do not cover bottom score bars.
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
+      className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-[38%] items-start justify-end p-3 sm:p-4"
       aria-live="polite"
     >
       <div
         className={cn(
-          "flex min-w-[min(90vw,28rem)] flex-col items-center gap-2 rounded-[4px] border-2 px-10 py-7 shadow-tile",
+          "flex max-w-[min(92vw,20rem)] flex-col items-center gap-1 rounded-[4px] border-2 px-5 py-3 shadow-tile sm:px-7 sm:py-4",
           "animate-[fadeIn_0.2s_ease-out]",
           kind === "six" && "border-flip bg-ink text-flip",
           kind === "four" && "border-chalk bg-pitch text-chalk",
@@ -146,11 +147,11 @@ export function EventGraphics({ state }: { state: CompactState | null }) {
           (kind === "wide" || kind === "no_ball") && "border-willow bg-ink text-willow",
         )}
       >
-        <span className="font-sans text-5xl font-black tracking-[0.18em] uppercase sm:text-6xl">
+        <span className="font-sans text-3xl font-black tracking-[0.14em] uppercase sm:text-4xl">
           {LABELS[kind]}
         </span>
         {subtitle && (
-          <span className="font-sans text-sm tracking-wide text-chalk/90 uppercase">
+          <span className="font-sans text-[11px] tracking-wide text-chalk/90 uppercase sm:text-xs">
             {subtitle}
           </span>
         )}

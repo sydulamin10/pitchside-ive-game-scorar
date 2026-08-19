@@ -370,6 +370,245 @@ async def close_innings_now(
     return ScoringOutcome(snapshot=snapshot, accepted=1)
 
 
+async def set_crease_bowler(
+    session: AsyncSession,
+    *,
+    match_id: uuid.UUID,
+    bowler_id: uuid.UUID,
+    actor: User,
+    request: Request | None = None,
+    expected_state_version: int | None = None,
+    innings_id: uuid.UUID | None = None,
+) -> ScoringOutcome:
+    """Change the bowler mid-over without resetting legal balls in the over."""
+    await _lock_match(session, match_id)
+    match = await load_match(session, match_id=match_id)
+    _check_version(match, expected_state_version)
+    innings = _require_open_innings(match, innings_id)
+    snapshot = await build_snapshot(session, match)
+    innings_snapshot = snapshot.innings_by_id(innings.id)
+    assert innings_snapshot is not None
+    state = innings_snapshot.state
+
+    if state.is_complete:
+        raise Conflict("This innings is already over.", code="innings_complete")
+    if state.current_bowler_id is None:
+        raise RuleViolation(
+            "There is no over in progress — pick a bowler for the new over instead.",
+            code="no_over_in_progress",
+        )
+
+    bowler_key = str(bowler_id)
+    if not any(p.id == bowler_key and p.is_playing for p in innings_snapshot.bowling_refs):
+        raise RuleViolation(
+            "That bowler is not in the fielding side for this match.",
+            code="unknown_bowler",
+            details={"player_id": bowler_key},
+        )
+    if innings_snapshot.rules.max_overs_per_bowler is not None:
+        quota = (
+            innings_snapshot.rules.max_overs_per_bowler * innings_snapshot.rules.balls_per_over
+        )
+        card = next((b for b in state.bowling if b.player_id == bowler_key), None)
+        if card is not None and card.balls_bowled >= quota:
+            raise RuleViolation(
+                "That bowler has already bowled their maximum overs.",
+                code="over_quota_reached",
+                details={"player_id": bowler_key},
+            )
+
+    _write_crease_override(
+        innings,
+        after_sequence=_last_delivery_sequence(innings),
+        striker_id=state.striker_id,
+        non_striker_id=state.non_striker_id,
+        bowler_id=bowler_key,
+    )
+    snapshot = await _finalise(session, match, actor=actor, request=request)
+    await audit_service.record(
+        session,
+        AuditAction.CREASE_UPDATED,
+        actor_user_id=actor.id,
+        entity_type="innings",
+        entity_id=innings.id,
+        context={
+            "match_id": str(match.id),
+            "kind": "bowler",
+            "bowler_id": bowler_key,
+            "after_sequence": innings.crease_after_sequence,
+        },
+        request=request,
+    )
+    await session.commit()
+    await publish(snapshot)
+    return ScoringOutcome(snapshot=snapshot, accepted=1)
+
+
+async def swap_crease_ends(
+    session: AsyncSession,
+    *,
+    match_id: uuid.UUID,
+    actor: User,
+    request: Request | None = None,
+    expected_state_version: int | None = None,
+    innings_id: uuid.UUID | None = None,
+) -> ScoringOutcome:
+    """Swap striker and non-striker for future balls only."""
+    await _lock_match(session, match_id)
+    match = await load_match(session, match_id=match_id)
+    _check_version(match, expected_state_version)
+    innings = _require_open_innings(match, innings_id)
+    snapshot = await build_snapshot(session, match)
+    innings_snapshot = snapshot.innings_by_id(innings.id)
+    assert innings_snapshot is not None
+    state = innings_snapshot.state
+
+    if state.is_complete:
+        raise Conflict("This innings is already over.", code="innings_complete")
+    if not state.striker_id or not state.non_striker_id:
+        raise RuleViolation(
+            "Both ends must be occupied before you can swap strike.",
+            code="crease_incomplete",
+        )
+
+    _write_crease_override(
+        innings,
+        after_sequence=_last_delivery_sequence(innings),
+        striker_id=state.non_striker_id,
+        non_striker_id=state.striker_id,
+        bowler_id=state.current_bowler_id,
+    )
+    snapshot = await _finalise(session, match, actor=actor, request=request)
+    await audit_service.record(
+        session,
+        AuditAction.CREASE_UPDATED,
+        actor_user_id=actor.id,
+        entity_type="innings",
+        entity_id=innings.id,
+        context={
+            "match_id": str(match.id),
+            "kind": "swap_ends",
+            "striker_id": innings.crease_striker_id and str(innings.crease_striker_id),
+            "non_striker_id": innings.crease_non_striker_id
+            and str(innings.crease_non_striker_id),
+            "after_sequence": innings.crease_after_sequence,
+        },
+        request=request,
+    )
+    await session.commit()
+    await publish(snapshot)
+    return ScoringOutcome(snapshot=snapshot, accepted=1)
+
+
+async def set_crease_batters(
+    session: AsyncSession,
+    *,
+    match_id: uuid.UUID,
+    striker_id: uuid.UUID,
+    non_striker_id: uuid.UUID,
+    actor: User,
+    request: Request | None = None,
+    expected_state_version: int | None = None,
+    innings_id: uuid.UUID | None = None,
+) -> ScoringOutcome:
+    """Set striker / non-striker for future balls without rewriting history."""
+    await _lock_match(session, match_id)
+    match = await load_match(session, match_id=match_id)
+    _check_version(match, expected_state_version)
+    innings = _require_open_innings(match, innings_id)
+    snapshot = await build_snapshot(session, match)
+    innings_snapshot = snapshot.innings_by_id(innings.id)
+    assert innings_snapshot is not None
+    state = innings_snapshot.state
+
+    if state.is_complete:
+        raise Conflict("This innings is already over.", code="innings_complete")
+    if not state.striker_id or not state.non_striker_id:
+        raise RuleViolation(
+            "Open the innings with openers before changing the crease.",
+            code="crease_incomplete",
+        )
+
+    striker_key = str(striker_id)
+    non_striker_key = str(non_striker_id)
+    named = {striker_key, non_striker_key}
+    at_crease = {state.striker_id, state.non_striker_id}
+    available = set(state.available_batter_ids)
+
+    if named != at_crease:
+        incoming = named - at_crease
+        outgoing = at_crease - named
+        if len(incoming) != 1 or len(outgoing) != 1:
+            raise RuleViolation(
+                "Change one end at a time, or swap the two batters already at the crease.",
+                code="invalid_crease_batters",
+                details={"expected": sorted(at_crease), "received": sorted(named)},
+            )
+        new_batter = next(iter(incoming))
+        if new_batter not in available:
+            raise RuleViolation(
+                "That batter is not available to come in.",
+                code="batter_unavailable",
+                details={"player_id": new_batter},
+            )
+
+    batting_ids = {p.id for p in innings_snapshot.batting_refs if p.is_playing}
+    for player_id in named:
+        if player_id not in batting_ids:
+            raise RuleViolation(
+                "That batter is not in the batting side.",
+                code="unknown_batter",
+                details={"player_id": player_id},
+            )
+
+    _write_crease_override(
+        innings,
+        after_sequence=_last_delivery_sequence(innings),
+        striker_id=striker_key,
+        non_striker_id=non_striker_key,
+        bowler_id=state.current_bowler_id,
+    )
+    snapshot = await _finalise(session, match, actor=actor, request=request)
+    await audit_service.record(
+        session,
+        AuditAction.CREASE_UPDATED,
+        actor_user_id=actor.id,
+        entity_type="innings",
+        entity_id=innings.id,
+        context={
+            "match_id": str(match.id),
+            "kind": "batters",
+            "striker_id": striker_key,
+            "non_striker_id": non_striker_key,
+            "after_sequence": innings.crease_after_sequence,
+        },
+        request=request,
+    )
+    await session.commit()
+    await publish(snapshot)
+    return ScoringOutcome(snapshot=snapshot, accepted=1)
+
+
+def _last_delivery_sequence(innings: Innings) -> int:
+    if not innings.deliveries:
+        return 0
+    return max(d.sequence for d in innings.deliveries)
+
+
+def _write_crease_override(
+    innings: Innings,
+    *,
+    after_sequence: int,
+    striker_id: str | None,
+    non_striker_id: str | None,
+    bowler_id: str | None,
+) -> None:
+    innings.crease_after_sequence = after_sequence
+    innings.crease_striker_id = uuid.UUID(striker_id) if striker_id else None
+    innings.crease_non_striker_id = uuid.UUID(non_striker_id) if non_striker_id else None
+    innings.crease_bowler_id = uuid.UUID(bowler_id) if bowler_id else None
+
+
 async def rebuild_projections(
     session: AsyncSession, *, match_id: uuid.UUID, actor: User | None = None
 ) -> MatchSnapshot:
@@ -385,6 +624,225 @@ async def rebuild_projections(
     await publish(snapshot)
     logger.info("match_projections_rebuilt", match_id=str(match_id))
     return snapshot
+
+
+async def set_crease_bowler(
+    session: AsyncSession,
+    *,
+    match_id: uuid.UUID,
+    bowler_id: uuid.UUID,
+    innings_id: uuid.UUID | None = None,
+    expected_state_version: int | None = None,
+    actor: User,
+    request: Request | None = None,
+) -> ScoringOutcome:
+    """Injury replacement: change the active bowler without resetting the over."""
+    await _lock_match(session, match_id)
+    match = await load_match(session, match_id=match_id)
+    _check_version(match, expected_state_version)
+    innings = _require_open_innings(match, innings_id)
+    snapshot = await build_snapshot(session, match)
+    innings_snap = next(i for i in snapshot.innings if i.id == innings.id)
+    state = innings_snap.state
+
+    if state.current_bowler_id is None:
+        raise RuleViolation(
+            "No over is in progress — pick the bowler when recording the first ball.",
+            code="no_over_in_progress",
+        )
+    if str(bowler_id) == state.current_bowler_id:
+        return ScoringOutcome(snapshot=snapshot, accepted=0)
+
+    bowling_ids = {p.id for p in innings_snap.bowling_refs}
+    if str(bowler_id) not in bowling_ids:
+        raise RuleViolation(
+            "That player is not in the bowling side.",
+            code="bowler_not_in_side",
+            details={"player_id": str(bowler_id)},
+        )
+    if (
+        str(bowler_id) in state.ineligible_bowler_ids
+        and state.next_action is not None
+        and getattr(state.next_action, "value", state.next_action) == "select_bowler"
+    ):
+        raise RuleViolation(
+            "That bowler cannot bowl this over.",
+            code="consecutive_overs",
+            details={"player_id": str(bowler_id)},
+        )
+    if innings_snap.rules.max_overs_per_bowler is not None:
+        quota = innings_snap.rules.max_overs_per_bowler * innings_snap.rules.balls_per_over
+        card = next((b for b in state.bowling if b.player_id == str(bowler_id)), None)
+        if card is not None and card.balls_bowled >= quota:
+            raise RuleViolation(
+                "That bowler has already bowled their maximum overs.",
+                code="over_quota_reached",
+                details={"player_id": str(bowler_id)},
+            )
+
+    _write_crease_override(
+        innings,
+        after_sequence=_crease_checkpoint(innings),
+        striker_id=uuid.UUID(state.striker_id) if state.striker_id else innings.crease_striker_id,
+        non_striker_id=(
+            uuid.UUID(state.non_striker_id) if state.non_striker_id else innings.crease_non_striker_id
+        ),
+        bowler_id=bowler_id,
+    )
+    await audit_service.record(
+        session,
+        AuditAction.CREASE_UPDATED,
+        actor_user_id=actor.id,
+        entity_type="innings",
+        entity_id=innings.id,
+        context={
+            "kind": "bowler",
+            "bowler_id": str(bowler_id),
+            "previous_bowler_id": state.current_bowler_id,
+        },
+        request=request,
+    )
+    snapshot = await _finalise(session, match, actor=actor, request=request)
+    await session.commit()
+    await publish(snapshot)
+    return ScoringOutcome(snapshot=snapshot, accepted=1)
+
+
+async def swap_crease_ends(
+    session: AsyncSession,
+    *,
+    match_id: uuid.UUID,
+    innings_id: uuid.UUID | None = None,
+    expected_state_version: int | None = None,
+    actor: User,
+    request: Request | None = None,
+) -> ScoringOutcome:
+    """Swap strike for future balls only — does not rewrite historical deliveries."""
+    await _lock_match(session, match_id)
+    match = await load_match(session, match_id=match_id)
+    _check_version(match, expected_state_version)
+    innings = _require_open_innings(match, innings_id)
+    snapshot = await build_snapshot(session, match)
+    innings_snap = next(i for i in snapshot.innings if i.id == innings.id)
+    state = innings_snap.state
+
+    if not state.striker_id or not state.non_striker_id:
+        raise RuleViolation(
+            "Both ends must be filled before ends can be swapped.",
+            code="crease_incomplete",
+        )
+
+    _write_crease_override(
+        innings,
+        after_sequence=_crease_checkpoint(innings),
+        striker_id=uuid.UUID(state.non_striker_id),
+        non_striker_id=uuid.UUID(state.striker_id),
+        bowler_id=(
+            uuid.UUID(state.current_bowler_id)
+            if state.current_bowler_id
+            else innings.crease_bowler_id
+        ),
+    )
+    await audit_service.record(
+        session,
+        AuditAction.CREASE_UPDATED,
+        actor_user_id=actor.id,
+        entity_type="innings",
+        entity_id=innings.id,
+        context={
+            "kind": "swap_ends",
+            "striker_id": state.non_striker_id,
+            "non_striker_id": state.striker_id,
+        },
+        request=request,
+    )
+    snapshot = await _finalise(session, match, actor=actor, request=request)
+    await session.commit()
+    await publish(snapshot)
+    return ScoringOutcome(snapshot=snapshot, accepted=1)
+
+
+async def set_crease_ends(
+    session: AsyncSession,
+    *,
+    match_id: uuid.UUID,
+    striker_id: uuid.UUID,
+    non_striker_id: uuid.UUID,
+    innings_id: uuid.UUID | None = None,
+    expected_state_version: int | None = None,
+    actor: User,
+    request: Request | None = None,
+) -> ScoringOutcome:
+    """Set who faces for future balls (same pair swap or one replacement)."""
+    await _lock_match(session, match_id)
+    match = await load_match(session, match_id=match_id)
+    _check_version(match, expected_state_version)
+    innings = _require_open_innings(match, innings_id)
+    if striker_id == non_striker_id:
+        raise RuleViolation(
+            "Striker and non-striker must be different players.",
+            code="batters_identical",
+        )
+    snapshot = await build_snapshot(session, match)
+    innings_snap = next(i for i in snapshot.innings if i.id == innings.id)
+    state = innings_snap.state
+    batting_ids = {p.id for p in innings_snap.batting_refs}
+    for pid in (striker_id, non_striker_id):
+        if str(pid) not in batting_ids:
+            raise RuleViolation(
+                "That batter is not in the batting side.",
+                code="batter_not_in_side",
+                details={"player_id": str(pid)},
+            )
+
+    _write_crease_override(
+        innings,
+        after_sequence=_crease_checkpoint(innings),
+        striker_id=striker_id,
+        non_striker_id=non_striker_id,
+        bowler_id=(
+            uuid.UUID(state.current_bowler_id)
+            if state.current_bowler_id
+            else innings.crease_bowler_id
+        ),
+    )
+    await audit_service.record(
+        session,
+        AuditAction.CREASE_UPDATED,
+        actor_user_id=actor.id,
+        entity_type="innings",
+        entity_id=innings.id,
+        context={
+            "kind": "set_ends",
+            "striker_id": str(striker_id),
+            "non_striker_id": str(non_striker_id),
+        },
+        request=request,
+    )
+    snapshot = await _finalise(session, match, actor=actor, request=request)
+    await session.commit()
+    await publish(snapshot)
+    return ScoringOutcome(snapshot=snapshot, accepted=1)
+
+
+def _crease_checkpoint(innings: Innings) -> int:
+    if not innings.deliveries:
+        return 0
+    return max(d.sequence for d in innings.deliveries)
+
+
+def _write_crease_override(
+    innings: Innings,
+    *,
+    after_sequence: int,
+    striker_id: uuid.UUID | None,
+    non_striker_id: uuid.UUID | None,
+    bowler_id: uuid.UUID | None,
+) -> None:
+    innings.crease_after_sequence = after_sequence
+    innings.crease_striker_id = striker_id
+    innings.crease_non_striker_id = non_striker_id
+    innings.crease_bowler_id = bowler_id
 
 
 async def publish(
@@ -672,11 +1130,14 @@ async def _repair_strike_assignments(
     later ball in that over. The engine reports the corrections; we persist them
     so the log and the replay never disagree.
     """
+    from app.services.match_query import crease_override_for
+
     result = replay(
         innings_snapshot.rules,
         innings_snapshot.batting_refs,
         innings_snapshot.bowling_refs,
         innings_snapshot.events,
+        crease=crease_override_for(innings_snapshot.innings),
     )
     if not result.repairs:
         return

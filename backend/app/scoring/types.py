@@ -71,6 +71,25 @@ class InningsRules:
 
 
 @dataclass(frozen=True, slots=True)
+class CreaseOverride:
+    """Projection-only crease correction applied after a delivery checkpoint.
+
+    Historical delivery rows are left untouched. The override is applied during
+    replay *after* ``after_sequence`` so future balls (and the live projection)
+    use the corrected ends / bowler without rewriting the log.
+    """
+
+    after_sequence: int
+    striker_id: str | None = None
+    non_striker_id: str | None = None
+    bowler_id: str | None = None
+
+    @property
+    def has_ends(self) -> bool:
+        return self.striker_id is not None and self.non_striker_id is not None
+
+
+@dataclass(frozen=True, slots=True)
 class DeliveryEvent:
     """One recorded ball, or a non-ball event such as a 5-run penalty.
 

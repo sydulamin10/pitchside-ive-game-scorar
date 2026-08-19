@@ -64,7 +64,14 @@ export default function ScoringConsole() {
   const state = innings?.state ?? null;
   const strikerId = state?.striker_id ?? selection.strikerId;
   const nonStrikerId = state?.non_striker_id ?? selection.nonStrikerId;
-  const bowlerId = state?.current_bowler_id ?? selection.bowlerId;
+  // Prefer an explicit mid-over bowler pick so offline scoring can change bowler
+  // before the next ball without waiting for the crease API.
+  const bowlerId =
+    selection.bowlerId &&
+    state?.current_bowler_id &&
+    selection.bowlerId !== state.current_bowler_id
+      ? selection.bowlerId
+      : (state?.current_bowler_id ?? selection.bowlerId);
   const ready = Boolean(strikerId && nonStrikerId && bowlerId);
 
   const scorable =
@@ -250,6 +257,9 @@ export default function ScoringConsole() {
                   bowlingSquad={bowlingSquad}
                   selection={{ strikerId, nonStrikerId, bowlerId }}
                   onChange={(patch) => setSelection((current) => ({ ...current, ...patch }))}
+                  onChangeBowler={(id) => void ctl.changeBowler(id)}
+                  onSwapEnds={() => void ctl.swapEnds()}
+                  busy={ctl.busy}
                 />
                 <Panel className="p-4">
                   <SectionTitle>Innings</SectionTitle>

@@ -71,7 +71,7 @@ export function MatchResultShare({
           )}
         >
           <div className="border-b border-flip/30 px-5 py-4">
-            <p className="font-sans text-[10px] tracking-[0.2em] text-flip uppercase">Pitchside</p>
+            <p className="font-sans text-[10px] tracking-[0.2em] text-flip uppercase">ODCC LIVE</p>
             <h2 className="mt-1 font-sans text-lg font-bold leading-tight text-chalk">
               {match.title}
             </h2>
@@ -161,7 +161,7 @@ export function MatchResultShare({
           </div>
 
           <p className="pb-4 text-center font-sans text-[10px] text-willow/70">
-            Scored live with Pitchside
+            Scored live with ODCC LIVE
           </p>
         </div>
       </div>

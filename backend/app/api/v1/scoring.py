@@ -10,6 +10,9 @@ from fastapi import APIRouter, Body, Depends, Query, Request
 from app.api.deps import CurrentUser, SessionDep, authorise_match
 from app.core.rate_limit import RateLimit
 from app.schemas.scoring import (
+    CreaseBattersUpdate,
+    CreaseBowlerUpdate,
+    CreaseSwapEnds,
     DeliveryBatch,
     DeliveryCreate,
     DeliveryUpdate,
@@ -150,5 +153,86 @@ async def undo(
     await authorise_match(session, match_id, user, write=True)
     outcome = await scoring_service.undo_last_delivery(
         session, match_id=match_id, innings_id=innings_id, actor=user, request=request
+    )
+    return _payload(outcome, full=True)
+
+
+@router.post(
+    "/crease/bowler",
+    dependencies=[Depends(ball_rate_limit)],
+    summary="Change bowler mid-over (injury replacement)",
+    response_model=None,
+)
+async def change_crease_bowler(
+    match_id: uuid.UUID,
+    payload: CreaseBowlerUpdate,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+    innings_id: uuid.UUID | None = Query(default=None),
+) -> dict[str, Any]:
+    await authorise_match(session, match_id, user, write=True)
+    outcome = await scoring_service.set_crease_bowler(
+        session,
+        match_id=match_id,
+        bowler_id=payload.bowler_id,
+        innings_id=innings_id,
+        expected_state_version=payload.expected_state_version,
+        actor=user,
+        request=request,
+    )
+    return _payload(outcome, full=True)
+
+
+@router.post(
+    "/crease/swap-ends",
+    dependencies=[Depends(ball_rate_limit)],
+    summary="Swap striker and non-striker for future balls",
+    response_model=None,
+)
+async def swap_crease_ends(
+    match_id: uuid.UUID,
+    payload: CreaseSwapEnds,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+    innings_id: uuid.UUID | None = Query(default=None),
+) -> dict[str, Any]:
+    await authorise_match(session, match_id, user, write=True)
+    outcome = await scoring_service.swap_crease_ends(
+        session,
+        match_id=match_id,
+        innings_id=innings_id,
+        expected_state_version=payload.expected_state_version,
+        actor=user,
+        request=request,
+    )
+    return _payload(outcome, full=True)
+
+
+@router.post(
+    "/crease/ends",
+    dependencies=[Depends(ball_rate_limit)],
+    summary="Set crease ends for future balls",
+    response_model=None,
+)
+async def set_crease_ends(
+    match_id: uuid.UUID,
+    payload: CreaseBattersUpdate,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+    innings_id: uuid.UUID | None = Query(default=None),
+) -> dict[str, Any]:
+    await authorise_match(session, match_id, user, write=True)
+    outcome = await scoring_service.set_crease_ends(
+        session,
+        match_id=match_id,
+        striker_id=payload.striker_id,
+        non_striker_id=payload.non_striker_id,
+        innings_id=innings_id,
+        expected_state_version=payload.expected_state_version,
+        actor=user,
+        request=request,
     )
     return _payload(outcome, full=True)

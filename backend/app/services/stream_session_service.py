@@ -245,7 +245,11 @@ def whip_publish_url(whip_path: str | None) -> str | None:
     if not whip_path:
         return None
     base = settings.MEDIAMTX_WHIP_BASE_URL.rstrip("/") + "/"
-    return urljoin(base, whip_path.lstrip("/"))
+    path = whip_path.lstrip("/")
+    # MediaMTX WHIP publish endpoint is ``{path}/whip``.
+    if not path.endswith("/whip"):
+        path = f"{path.rstrip('/')}/whip"
+    return urljoin(base, path)
 
 
 def _default_rtmp_url(whip_path: str) -> str:

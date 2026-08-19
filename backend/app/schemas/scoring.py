@@ -111,6 +111,33 @@ class DeliveryBatch(Schema):
     stop_on_error: bool = True
 
 
+class CreaseBowlerUpdate(Schema):
+    """Mid-over injury replacement: change bowler without resetting the over."""
+
+    bowler_id: uuid.UUID
+    expected_state_version: int | None = Field(default=None, ge=0)
+
+
+class CreaseSwapEnds(Schema):
+    """Swap striker and non-striker for future balls only."""
+
+    expected_state_version: int | None = Field(default=None, ge=0)
+
+
+class CreaseBattersUpdate(Schema):
+    """Set who is on strike / at the other end for future balls only."""
+
+    striker_id: uuid.UUID
+    non_striker_id: uuid.UUID
+    expected_state_version: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _coherent(self) -> Self:
+        if self.striker_id == self.non_striker_id:
+            raise ValueError("striker_id and non_striker_id must be different players")
+        return self
+
+
 class DeliveryOut(Schema):
     id: uuid.UUID
     innings_id: uuid.UUID

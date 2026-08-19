@@ -67,17 +67,16 @@ export default function Account() {
         <div className="px-4 py-3">
           <SectionTitle>Install on this device</SectionTitle>
           <p className="pt-1 font-sans text-xs text-willow">
-            Add Pitchside to your phone home screen or PC Start menu — opens like an app, still
+            Add ODCC LIVE to your phone home screen or PC Start menu — opens like an app, still
             the web version underneath.
           </p>
         </div>
         <Seam />
         <div className="px-4 py-4">
-          <InstallAppButton size="md" label="Download / Install app" />
+          <InstallAppButton size="md" label="Install app" />
           <p className="pt-2 font-sans text-[11px] text-willow">
-            Windows: downloads <span className="text-chalk">Pitchside-Create-Shortcut.vbs</span> —
-            open that file once to put Pitchside on Desktop (Chrome/Edge app mode). Phone home-screen
-            icons need HTTPS (or localhost).
+            Phone: home-screen icon, opens fullscreen. PC (Chrome/Edge): Install app — own window,
+            no browser chrome. No .vbs download.
           </p>
         </div>
       </Panel>

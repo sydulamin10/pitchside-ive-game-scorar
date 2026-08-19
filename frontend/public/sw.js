@@ -16,7 +16,7 @@
  *   anything else    passed straight through, untouched
  */
 
-const VERSION = "v3";
+const VERSION = "v4";
 const SHELL_CACHE = `pitchside-shell-${VERSION}`;
 const ASSET_CACHE = `pitchside-assets-${VERSION}`;
 const DATA_CACHE = `pitchside-data-${VERSION}`;
@@ -89,26 +89,22 @@ self.addEventListener("fetch", (event) => {
 });
 
 /**
- * Every route is client-rendered, so any navigation can be answered with the one
- * shell document. Serving it from cache first is what makes the console open
- * instantly at a ground with no signal; the network copy replaces it quietly.
+ * Prefer the network shell so a deploy's new index.html (and hashed JS with the
+ * correct API URL) is picked up immediately. Fall back to cache only offline.
  */
 async function shell(request) {
   const cache = await caches.open(SHELL_CACHE);
-  const cached = (await cache.match(SHELL_URL)) ?? (await cache.match("/"));
-
-  const fresh = fetch(request)
-    .then((response) => {
-      if (response.ok) void cache.put(SHELL_URL, response.clone());
-      return response;
-    })
-    .catch(() => undefined);
-
-  if (cached) {
-    void fresh;
-    return cached;
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response.ok) void cache.put(SHELL_URL, response.clone());
+    return response;
+  } catch {
+    return (
+      (await cache.match(SHELL_URL)) ??
+      (await cache.match("/")) ??
+      Response.error()
+    );
   }
-  return (await fresh) ?? Response.error();
 }
 
 async function cacheFirst(request, cacheName) {

@@ -113,10 +113,19 @@ rows (batch-loaded in ``build_snapshot`` / squad selectinload).
 Authenticated ``/matches/{id}/stream-sessions`` (create, active GET/PATCH,
 go-live, end) manages a ``StreamSession`` (idle → preview|live → ended).
 RTMP stream keys are Fernet-encrypted at rest and returned only on create/update.
-Responses include ``whip_publish_url`` from ``MEDIAMTX_WHIP_BASE_URL``.
-Compose runs ``bluenviron/mediamtx`` (ports 8554 RTSP, 1935 RTMP, 8889 WHIP,
-8888 HLS). Permissions-Policy allows ``camera=(self), microphone=(self)`` so
-the broadcast studio can capture.
+Responses include ``whip_publish_url`` from ``MEDIAMTX_WHIP_BASE_URL``
+(MediaMTX path + ``/whip``). Compose runs ``bluenviron/mediamtx`` (ports 8554
+RTSP, 1935 RTMP, 8889 WHIP, 8888 HLS). Permissions-Policy allows
+``camera=(self), microphone=(self)`` so the broadcast studio can capture.
+
+**Phone WHIP publish** (Go Live → Phone camera QR / ExternalCamera) POSTs an SDP
+offer from the browser to ``whip_publish_url``. For real devices,
+``MEDIAMTX_WHIP_BASE_URL`` must be a **public HTTPS** origin reachable from
+phones (not ``localhost``, and not HTTP-only on modern mobile Safari/Chrome).
+Render’s API container alone does not terminate WHIP — run MediaMTX on Docker/VPS
+([``infra/mediamtx.yml``](../infra/mediamtx.yml), [``infra/docker-compose.yml``](../infra/docker-compose.yml))
+and point the API env at that public WHIP base. If the URL is missing or
+unreachable, the camera UI shows a config error (never a blank page).
 ## Event graphics (SSE-driven)
 
 Overlays and event graphics consume the compact live projection over SSE
@@ -130,11 +139,12 @@ they belong on top of the delivery log and media pipeline, not as parallel store
 
 ## Go Live graphics package
 
-Host **Go Live** (`/app/matches/:id/broadcast`) offers **This Device** and
-**External Camera**. External links use ``camera_token`` on ``stream_sessions``:
-public ``/s/:slug/camera/:token`` opens the phone camera with the live SSE overlay.
-QR is served at ``GET /public/matches/{slug}/camera/{token}/qr``. Overlay skins:
-``style=broadcast|minimal``. Post-match awards/MVP and runs-per-over series are
+Host **Go Live** (`/app/matches/:id/broadcast`) prefers **Phone camera** (QR /
+``camera_url`` → public ``/s/:slug/camera/:token``), which claims the session and
+WHIP-publishes to MediaMTX. Optional **OBS overlay** browser-source link remains
+for power users; **This device** can also WHIP-publish when the WHIP base URL is
+public. QR is served at ``GET /public/matches/{slug}/camera/{token}/qr``. Overlay
+skins use ``design=…``. Post-match awards/MVP and runs-per-over series are
 derived on read via ``match_awards.compute_match_awards``
 (``GET /public/matches/{slug}/awards``).
 

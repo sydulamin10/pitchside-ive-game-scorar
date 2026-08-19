@@ -47,7 +47,7 @@ export function AppShell() {
           <Link to="/app" className="flex items-center gap-2.5">
             <SeamMark className="size-6" />
             <span className="font-sans text-base font-bold tracking-tight text-chalk">
-              Pitchside
+              ODCC LIVE
             </span>
           </Link>
 

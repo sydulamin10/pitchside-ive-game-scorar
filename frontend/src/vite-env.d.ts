@@ -6,6 +6,11 @@
  * Everything here ships to the browser in the bundle. Nothing secret belongs in a
  * `VITE_` variable — the backend holds the keys.
  */
+interface Window {
+  /** Set in `/runtime-config.js` so the API origin can change without a rebuild. */
+  __PITCHSIDE_API_BASE_URL__?: string;
+}
+
 interface ImportMetaEnv {
   /** Origin of the API, e.g. `https://api.example.com`. Empty means same-origin. */
   readonly VITE_API_BASE_URL?: string;

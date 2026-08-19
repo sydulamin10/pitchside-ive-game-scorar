@@ -91,6 +91,9 @@ export interface ConsoleController {
   }) => Promise<void>;
   closeInnings: (endReason: string) => Promise<void>;
   setToss: (winnerTeamId: string, decision: "bat" | "bowl") => Promise<void>;
+  changeBowler: (bowlerId: string) => Promise<void>;
+  swapEnds: () => Promise<void>;
+  setBatters: (strikerId: string, nonStrikerId: string) => Promise<void>;
   syncNow: () => Promise<void>;
   refetch: () => void;
 }
@@ -433,6 +436,67 @@ export function useConsole(matchId: string | undefined): ConsoleController {
     [matchId, server, applyResponse],
   );
 
+  const changeBowler = useCallback(
+    async (bowlerId: string) => {
+      if (!matchId) return;
+      try {
+        const response = await scoring.changeBowler(
+          matchId,
+          {
+            bowler_id: bowlerId,
+            expected_state_version: server?.match.state_version ?? null,
+          },
+          innings?.id,
+        );
+        applyResponse(response.state);
+        toast("Bowler changed for the rest of this over.", "success");
+      } catch (error) {
+        toastError(error, "The bowler could not be changed.");
+        throw error;
+      }
+    },
+    [matchId, server, innings, applyResponse],
+  );
+
+  const swapEnds = useCallback(async () => {
+    if (!matchId) return;
+    try {
+      const response = await scoring.swapEnds(
+        matchId,
+        { expected_state_version: server?.match.state_version ?? null },
+        innings?.id,
+      );
+      applyResponse(response.state);
+      toast("Strike swapped for future balls.", "success");
+    } catch (error) {
+      toastError(error, "Strike could not be swapped.");
+      throw error;
+    }
+  }, [matchId, server, innings, applyResponse]);
+
+  const setBatters = useCallback(
+    async (strikerId: string, nonStrikerId: string) => {
+      if (!matchId) return;
+      try {
+        const response = await scoring.setBatters(
+          matchId,
+          {
+            striker_id: strikerId,
+            non_striker_id: nonStrikerId,
+            expected_state_version: server?.match.state_version ?? null,
+          },
+          innings?.id,
+        );
+        applyResponse(response.state);
+        toast("Crease updated for future balls.", "success");
+      } catch (error) {
+        toastError(error, "The crease could not be updated.");
+        throw error;
+      }
+    },
+    [matchId, server, innings, applyResponse],
+  );
+
   const syncNow = useCallback(async () => {
     if (!matchId) return;
     const outcome = await syncMatch(matchId);
@@ -483,6 +547,9 @@ export function useConsole(matchId: string | undefined): ConsoleController {
     startInnings,
     closeInnings,
     setToss,
+    changeBowler,
+    swapEnds,
+    setBatters,
     syncNow,
     refetch,
   };

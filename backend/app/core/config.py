@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ app
     ENV: Environment = "development"
     DEBUG: bool = False
-    PROJECT_NAME: str = "Pitchside"
+    PROJECT_NAME: str = "ODCC LIVE"
     API_V1_PREFIX: str = "/api/v1"
     #: Public origin of the *frontend*, used to build shareable links.
     PUBLIC_WEB_URL: str = "http://localhost:5173"

@@ -24,6 +24,7 @@ export {
   formatBall,
   replay,
   validateDelivery,
+  type CreaseOverride,
   type ReplayResult,
   type StrikeRepair,
 } from "./engine";

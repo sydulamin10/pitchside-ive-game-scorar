@@ -23,6 +23,7 @@ from app.models.enums import InningsStatus, MatchFormat, MatchStatus
 from app.models.match import Delivery, Innings, Match, MatchPlayer
 from app.models.team import Team
 from app.scoring import (
+    CreaseOverride,
     DeliveryEvent,
     InningsRules,
     InningsState,
@@ -125,6 +126,7 @@ class MatchSnapshot:
                     "name": match.tournament.name,
                     "slug": match.tournament.public_slug,
                     "round": match.tournament_round,
+                    "logo_url": match.tournament.logo_url,
                 }
                 if match.tournament
                 else None
@@ -200,6 +202,7 @@ class MatchSnapshot:
                     "name": match.tournament.name,
                     "slug": match.tournament.public_slug,
                     "round": match.tournament_round,
+                    "logo_url": match.tournament.logo_url,
                 }
                 if match.tournament
                 else None
@@ -310,7 +313,13 @@ async def build_snapshot(session: AsyncSession, match: Match) -> MatchSnapshot:
         batting_refs = squad_refs.get(batting_id, [])
         bowling_refs = squad_refs.get(bowling_id, [])
         events = [_to_event(d) for d in sorted(innings.deliveries, key=lambda d: d.sequence)]
-        state = build_innings_state(rules, batting_refs, bowling_refs, events)
+        state = build_innings_state(
+            rules,
+            batting_refs,
+            bowling_refs,
+            events,
+            crease=crease_override_for(innings),
+        )
         previous_totals[innings.sequence] = state.total_runs
         snapshots.append(
             InningsSnapshot(
@@ -390,6 +399,25 @@ def _rules_for(match: Match, innings: Innings, previous_totals: dict[int, int]) 
         forbid_consecutive_overs=not bool(
             match.rule_overrides.get("allow_consecutive_overs", False)
         ),
+    )
+
+
+def crease_override_for(innings: Innings) -> CreaseOverride | None:
+    if innings.crease_after_sequence is None:
+        return None
+    if (
+        innings.crease_striker_id is None
+        and innings.crease_non_striker_id is None
+        and innings.crease_bowler_id is None
+    ):
+        return None
+    return CreaseOverride(
+        after_sequence=innings.crease_after_sequence,
+        striker_id=str(innings.crease_striker_id) if innings.crease_striker_id else None,
+        non_striker_id=str(innings.crease_non_striker_id)
+        if innings.crease_non_striker_id
+        else None,
+        bowler_id=str(innings.crease_bowler_id) if innings.crease_bowler_id else None,
     )
 
 

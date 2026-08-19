@@ -56,7 +56,7 @@ export function PublicShell() {
           <Link to="/" className="flex items-center gap-2.5">
             <SeamMark className="size-6" />
             <span className="font-sans text-base font-bold tracking-tight text-chalk">
-              Pitchside
+              ODCC LIVE
             </span>
           </Link>
 
@@ -114,11 +114,12 @@ export function PublicShell() {
           <div>
             <div className="flex items-center gap-2">
               <SeamMark className="size-5" />
-              <span className="font-sans text-sm font-bold text-chalk">Pitchside</span>
+              <span className="font-sans text-sm font-bold text-chalk">ODCC LIVE</span>
             </div>
             <p className="mt-2 max-w-xs text-sm text-willow-soft">
-              A scorer's ledger for club, gully, box and turf cricket. Score from a phone, share
-              one link, and let the numbers take care of themselves.
+              Live Every Ball. Feel Every Run. A scorer's ledger for club, gully, box and turf
+              cricket. Score from a phone, share one link, and let the numbers take care of
+              themselves.
             </p>
           </div>
           {FOOTER.map((column) => (
@@ -143,7 +144,7 @@ export function PublicShell() {
         </div>
         <div className="mx-auto max-w-6xl px-4 pb-8">
           <p className="font-sans text-xs text-willow">
-            © {new Date().getFullYear()} Pitchside. Not affiliated with any other scoring
+            © {new Date().getFullYear()} ODCC LIVE. Not affiliated with any other scoring
             product.
           </p>
         </div>

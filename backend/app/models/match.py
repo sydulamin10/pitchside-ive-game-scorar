@@ -243,6 +243,19 @@ class Innings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     #: Monotonic high-water mark for delivery ordering. Never reused, so gaps
     #: from deleted balls are expected and harmless.
     next_delivery_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: Projection-only crease correction (Phase 5/6). Applied after
+    #: ``crease_after_sequence`` during replay; historical delivery rows are not
+    #: rewritten.
+    crease_after_sequence: Mapped[int | None] = mapped_column(Integer, default=None)
+    crease_striker_id: Mapped[uuid.UUID | None] = fk_uuid(
+        "match_players.id", nullable=True, ondelete="SET NULL", index=False
+    )
+    crease_non_striker_id: Mapped[uuid.UUID | None] = fk_uuid(
+        "match_players.id", nullable=True, ondelete="SET NULL", index=False
+    )
+    crease_bowler_id: Mapped[uuid.UUID | None] = fk_uuid(
+        "match_players.id", nullable=True, ondelete="SET NULL", index=False
+    )
 
     match: Mapped[Match] = relationship(back_populates="innings")
     deliveries: Mapped[list[Delivery]] = relationship(

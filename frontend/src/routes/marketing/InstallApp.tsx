@@ -35,15 +35,15 @@ export default function InstallAppPage() {
       <div className="flex flex-col items-center text-center">
         <img
           src="/icons/icon-192.png"
-          alt="Pitchside"
+          alt="ODCC LIVE"
           width={96}
           height={96}
           className="rounded-[18px] border border-willow/30 shadow-tile"
         />
-        <h1 className="mt-4 font-sans text-2xl font-bold text-chalk">Install Pitchside</h1>
+        <h1 className="mt-4 font-sans text-2xl font-bold text-chalk">Install ODCC LIVE</h1>
         <p className="mt-2 font-sans text-sm text-willow">
-          Add the cricket-ball icon to your phone. Tap it anytime — opens like an app
-          (fullscreen, no browser bar).
+          Live Every Ball. Feel Every Run. Add the ODCC LIVE icon on your phone or PC. Tap or
+          click anytime — opens like an app (own window, no browser tabs).
         </p>
       </div>
 
@@ -52,7 +52,7 @@ export default function InstallAppPage() {
           <>
             <p className="font-sans text-sm text-flip">Already installed on this device.</p>
             <Link to="/app" className="mt-3 inline-block">
-              <Button>Open Pitchside</Button>
+              <Button>Open ODCC LIVE</Button>
             </Link>
             <Seam className="my-4" />
           </>
@@ -103,6 +103,13 @@ export default function InstallAppPage() {
         {isIosSafari() && !standalone && (
           <p className="mt-3 font-sans text-xs text-willow">
             iPhone: tap Share → <strong className="text-chalk">Add to Home Screen</strong> → Add.
+          </p>
+        )}
+        {secure && !canNativeInstall && !standalone && !isAndroid() && !isIosSafari() && (
+          <p className="mt-3 font-sans text-xs text-willow">
+            PC: use <strong className="text-chalk">Chrome</strong> or Edge → address-bar install
+            icon, or menu → <strong className="text-chalk">Install ODCC LIVE</strong>. Opens in an
+            app window (not a normal browser tab).
           </p>
         )}
       </Panel>

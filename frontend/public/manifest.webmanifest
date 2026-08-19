@@ -1,7 +1,7 @@
 {
-  "name": "Pitchside",
-  "short_name": "Pitchside",
-  "description": "Score any cricket match ball by ball from your phone, online or off, and share one live scorecard link.",
+  "name": "ODCC LIVE",
+  "short_name": "ODCC LIVE",
+  "description": "Live Every Ball. Feel Every Run. Score any cricket match ball by ball from your phone, online or off, and share one live scorecard link.",
   "id": "/",
   "start_url": "/app",
   "scope": "/",

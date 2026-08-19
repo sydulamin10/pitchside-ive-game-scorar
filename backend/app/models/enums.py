@@ -247,5 +247,6 @@ class AuditAction(StrEnum):
     DELIVERY_DELETED = "delivery.deleted"
     INNINGS_STARTED = "innings.started"
     INNINGS_CLOSED = "innings.closed"
+    CREASE_UPDATED = "crease.updated"
     TOURNAMENT_CREATED = "tournament.created"
     TOURNAMENT_UPDATED = "tournament.updated"

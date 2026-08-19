@@ -1,8 +1,8 @@
 /**
  * TV-style OBS browser-source overlay with selectable international designs.
  *
- * Query: position, scale, design=classic|circle|split|arena|emerald|chase|minimal,
- *        charts=1, awards=1, card=0
+ * Query: position, scale, design=classic|circle|split|arena|emerald|chase|modern|
+ *        premium|dark|clean|tournament|minimal, charts=1, awards=1, card=0
  */
 
 import { useEffect, useMemo } from "react";
@@ -18,6 +18,34 @@ import { publicApi } from "@/lib/api/endpoints";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
 import type { CompactState } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+
+function TournamentChip({ state }: { state: CompactState | null }) {
+  const t = state?.tournament;
+  if (!t?.name) return null;
+  return (
+    <div className="pointer-events-none fixed top-3 left-3 z-40 flex max-w-[min(72vw,16rem)] items-center gap-2 rounded-[3px] border border-white/25 bg-ink/75 px-2 py-1.5 text-chalk shadow-tile backdrop-blur-[2px] sm:max-w-[min(70vw,18rem)]">
+      {t.logo_url ? (
+        <img
+          src={t.logo_url}
+          alt=""
+          className="h-8 w-8 shrink-0 rounded-[2px] object-cover"
+        />
+      ) : (
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[2px] bg-white/10 font-mono text-[9px] font-bold">
+          {t.name.slice(0, 2).toUpperCase()}
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="truncate font-sans text-[11px] font-bold tracking-wide uppercase">
+          {t.name}
+        </p>
+        {t.round ? (
+          <p className="truncate font-sans text-[9px] text-chalk/70 uppercase">{t.round}</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export default function Overlay() {
   const { slug } = useParams<{ slug: string }>();
@@ -61,31 +89,38 @@ export default function Overlay() {
   if (!state?.score && !showAwards) return null;
 
   return (
-    <div
-      className={cn(
-        "fixed inset-x-0 flex flex-col items-center gap-2 px-3",
-        position === "top" ? "top-4" : "bottom-4",
-      )}
-      style={{
-        transform: `scale(${scale})`,
-        transformOrigin: position === "top" ? "top" : "bottom",
-      }}
-    >
-      <EventGraphics state={state} />
-      {showCharts && chartSeries.length > 0 && (
-        <div className="w-full max-w-lg rounded-[4px] border border-willow/30 bg-ink/90 p-3">
-          <RunsPerOverCharts series={chartSeries} />
-        </div>
-      )}
-      {showAwards && awardsQuery.data && state?.status === "completed" && (
-        <div className="max-h-[70vh] w-full max-w-2xl overflow-auto rounded-[4px] bg-ink/95 p-2">
-          <MatchAwardsPanel awards={awardsQuery.data} />
-        </div>
-      )}
-      {state?.score && (
-        <TvScoreOverlay state={state} design={design} showPlayerCard={showCard} />
-      )}
-    </div>
+    <>
+      <TournamentChip state={state} />
+      {/* Full-viewport layer so EventGraphics absolute safe-zone anchors to the frame */}
+      <div className="pointer-events-none fixed inset-0 z-50">
+        <EventGraphics state={state} />
+      </div>
+      <div
+        className={cn(
+          "fixed inset-x-0 flex flex-col items-center gap-2 px-2 sm:px-3",
+          position === "top" ? "top-3 sm:top-4" : "bottom-3 sm:bottom-4",
+          "pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]",
+        )}
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: position === "top" ? "top" : "bottom",
+        }}
+      >
+        {showCharts && chartSeries.length > 0 && (
+          <div className="w-full max-w-lg rounded-[4px] border border-willow/30 bg-ink/90 p-3">
+            <RunsPerOverCharts series={chartSeries} />
+          </div>
+        )}
+        {showAwards && awardsQuery.data && state?.status === "completed" && (
+          <div className="max-h-[70vh] w-full max-w-2xl overflow-auto rounded-[4px] bg-ink/95 p-2">
+            <MatchAwardsPanel awards={awardsQuery.data} />
+          </div>
+        )}
+        {state?.score && (
+          <TvScoreOverlay state={state} design={design} showPlayerCard={showCard} />
+        )}
+      </div>
+    </>
   );
 }
 

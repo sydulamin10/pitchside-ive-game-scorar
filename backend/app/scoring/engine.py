@@ -43,6 +43,7 @@ from app.scoring.types import (
     BatterInnings,
     BatterStatus,
     BowlerInnings,
+    CreaseOverride,
     DeliveryEvent,
     Extras,
     FallOfWicket,
@@ -84,9 +85,13 @@ def build_innings_state(
     batting_squad: Sequence[PlayerRef],
     bowling_squad: Sequence[PlayerRef],
     deliveries: Iterable[DeliveryEvent],
+    *,
+    crease: CreaseOverride | None = None,
 ) -> InningsState:
     """Replay a delivery log into the full innings state."""
-    return replay(rules, batting_squad, bowling_squad, deliveries).state
+    return replay(
+        rules, batting_squad, bowling_squad, deliveries, crease=crease
+    ).state
 
 
 def replay(
@@ -96,6 +101,7 @@ def replay(
     deliveries: Iterable[DeliveryEvent],
     *,
     strict: bool = False,
+    crease: CreaseOverride | None = None,
 ) -> ReplayResult:
     """Replay a delivery log, optionally refusing to tolerate inconsistencies.
 
@@ -103,8 +109,13 @@ def replay(
     validating fixtures and imports). The default is forgiving: it repairs strike
     assignments and records human-readable warnings, which is what an edited log
     needs.
+
+    ``crease`` applies a projection-only ends/bowler correction after a delivery
+    checkpoint without rewriting historical rows.
     """
-    return _Replayer(rules, batting_squad, bowling_squad, strict=strict).run(deliveries)
+    return _Replayer(
+        rules, batting_squad, bowling_squad, strict=strict, crease=crease
+    ).run(deliveries)
 
 
 def validate_delivery(
@@ -204,11 +215,19 @@ def validate_delivery(
                     details={"player_id": event.bowler_id},
                 )
         elif state.current_bowler_id and event.bowler_id != state.current_bowler_id:
-            raise RuleViolation(
-                "The over is not finished — the same bowler must complete it.",
-                code="bowler_changed_mid_over",
-                details={"expected_bowler_id": state.current_bowler_id},
-            )
+            # Injury replacement: a new bowler may finish an over in progress.
+            # Consecutive-over rules only apply when *starting* an over.
+            if rules.max_overs_per_bowler is not None:
+                quota_balls = rules.max_overs_per_bowler * rules.balls_per_over
+                bowler_card = next(
+                    (b for b in state.bowling if b.player_id == event.bowler_id), None
+                )
+                if bowler_card is not None and bowler_card.balls_bowled >= quota_balls:
+                    raise RuleViolation(
+                        "That bowler has already bowled their maximum overs.",
+                        code="over_quota_reached",
+                        details={"player_id": event.bowler_id},
+                    )
 
     # ---------------------------------------------------------------- scoring
     if not 0 <= event.batter_runs <= MAX_BATTER_RUNS:
@@ -338,9 +357,11 @@ class _Replayer:
         bowling_squad: Sequence[PlayerRef],
         *,
         strict: bool = False,
+        crease: CreaseOverride | None = None,
     ) -> None:
         self.rules = rules
         self.strict = strict
+        self.crease = crease
         self.batting_squad = [p for p in batting_squad if p.is_playing]
         self.bowling_squad = [p for p in bowling_squad if p.is_playing]
         self.batting_names = {p.id: p.name for p in batting_squad}
@@ -376,11 +397,14 @@ class _Replayer:
         self.retired_hurt: set[str] = set()
         self.is_complete = False
         self.end_reason: InningsEndReason | None = None
+        self._crease_applied = False
 
     # ------------------------------------------------------------------- run
     def run(self, deliveries: Iterable[DeliveryEvent]) -> ReplayResult:
         ordered = sorted(deliveries, key=lambda d: d.sequence)
-        for event in ordered:
+        if self.crease is not None and self.crease.after_sequence == 0 and not ordered:
+            self._apply_crease_override()
+        for index, event in enumerate(ordered):
             if self.is_complete:
                 self.warnings.append(
                     f"Delivery {event.sequence} was recorded after the innings ended "
@@ -390,8 +414,65 @@ class _Replayer:
                 self.is_complete = False
                 self.end_reason = None
             self._apply(event)
+            if self.crease is not None and not self._crease_applied:
+                next_seq = (
+                    ordered[index + 1].sequence if index + 1 < len(ordered) else None
+                )
+                at_checkpoint = event.sequence <= self.crease.after_sequence and (
+                    next_seq is None or next_seq > self.crease.after_sequence
+                )
+                if at_checkpoint:
+                    self._apply_crease_override()
             self._evaluate_completion()
+        if self.crease is not None and not self._crease_applied:
+            self._apply_crease_override()
         return ReplayResult(state=self._finalise(), repairs=self.repairs)
+
+    def _apply_crease_override(self) -> None:
+        """Apply a scorer crease correction without touching the delivery log."""
+        if self.crease is None or self._crease_applied:
+            return
+        self._crease_applied = True
+        if self.crease.has_ends:
+            assert self.crease.striker_id is not None
+            assert self.crease.non_striker_id is not None
+            named = {self.crease.striker_id, self.crease.non_striker_id}
+            at_crease = {i for i in (self.striker, self.non_striker) if i}
+            if at_crease and named != at_crease:
+                # Allow one replacement batter (injury / wrong batsman).
+                incoming = named - at_crease
+                outgoing = at_crease - named
+                if len(incoming) == 1 and len(outgoing) == 1:
+                    new_id = next(iter(incoming))
+                    if new_id in self.batters:
+                        self._introduce(new_id)
+                elif len(incoming) > 1:
+                    self.warnings.append(
+                        "Crease override named batters who were not at the crease; ignored ends."
+                    )
+                    # Fall through without changing ends.
+                    if self.crease.bowler_id and self.current_over is not None:
+                        self.current_over.bowler_id = self.crease.bowler_id
+                        self.current_over.bowler_name = self.bowling_names.get(
+                            self.crease.bowler_id, self.current_over.bowler_name
+                        )
+                    return
+            self.striker = self.crease.striker_id
+            self.non_striker = self.crease.non_striker_id
+            for batter_id in (self.striker, self.non_striker):
+                if batter_id in self.batters:
+                    self._introduce(batter_id)
+            # Keep the current partnership pair in sync with the crease.
+            if self.partnerships and {self.striker, self.non_striker} != {
+                self.partnerships[-1].batter_a_id,
+                self.partnerships[-1].batter_b_id,
+            }:
+                self._open_partnership()
+        if self.crease.bowler_id and self.current_over is not None:
+            self.current_over.bowler_id = self.crease.bowler_id
+            self.current_over.bowler_name = self.bowling_names.get(
+                self.crease.bowler_id, self.current_over.bowler_name
+            )
 
     # --------------------------------------------------------------- one ball
     def _apply(self, event: DeliveryEvent) -> None:
@@ -608,6 +689,15 @@ class _Replayer:
             )
             self.overs.append(self.current_over)
             self.over_runs_charged = 0
+        elif (
+            self.current_over is not None
+            and event.bowler_id != self.current_over.bowler_id
+        ):
+            # Mid-over injury replacement: keep ball count, switch active bowler.
+            self.current_over.bowler_id = event.bowler_id
+            self.current_over.bowler_name = self.bowling_names.get(
+                event.bowler_id, "Unknown bowler"
+            )
 
         bowler = self.bowlers.get(event.bowler_id)
         if bowler is None:

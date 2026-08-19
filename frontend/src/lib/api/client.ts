@@ -13,8 +13,16 @@
  *    get an answer — even a failure — rather than a spinner that never ends.
  */
 
-const RAW_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
-export const API_BASE = `${RAW_BASE}/api/v1`;
+function resolveApiOrigin(): string {
+  const runtime =
+    typeof window !== "undefined" ? window.__PITCHSIDE_API_BASE_URL__?.trim() : "";
+  const baked = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
+  return (runtime || baked).replace(/\/+$/, "");
+}
+
+/** API origin (no `/api` suffix). Runtime config wins over the Vite build-time value. */
+export const API_ORIGIN = resolveApiOrigin();
+export const API_BASE = `${API_ORIGIN}/api/v1`;
 
 const REFRESH_STORAGE_KEY = "pitchside.refresh";
 const DEFAULT_TIMEOUT_MS = 15_000;

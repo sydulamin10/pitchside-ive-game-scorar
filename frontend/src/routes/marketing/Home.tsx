@@ -119,9 +119,11 @@ export function Home() {
     <>
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 lg:grid-cols-2 lg:py-20">
         <div>
-          <Badge tone="quiet">Free · no ads on the scoring screen</Badge>
-          <h1 className="mt-4 text-3xl sm:text-4xl lg:text-5xl">
-            A scorer's ledger for the cricket that actually gets played.
+          <p className="font-sans text-sm font-bold tracking-[0.18em] text-flip uppercase">
+            ODCC LIVE
+          </p>
+          <h1 className="mt-3 text-3xl sm:text-4xl lg:text-5xl">
+            Live Every Ball. Feel Every Run.
           </h1>
           <p className="mt-4 max-w-xl text-base text-chalk/85">
             Score ball by ball from the phone in your pocket — gully, box, turf, tape-ball, or a

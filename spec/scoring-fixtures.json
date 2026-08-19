@@ -508,6 +508,29 @@
           "p2": { "balls_bowled": 6, "runs_conceded": 2, "maidens": 0 }
         }
       }
+    },
+    {
+      "name": "mid-over bowler change keeps over ball count (0.4 → new bowler → 0.5 → 1.0)",
+      "bowlers": ["p1", "p2"],
+      "deliveries": [
+        { "striker": "a1", "non_striker": "a2", "bowler": "p1", "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "runs": 0 },
+        { "bowler": "p2", "runs": 1 },
+        { "runs": 0 }
+      ],
+      "expect": {
+        "total_runs": 1,
+        "legal_balls": 6,
+        "overs_text": "1.0",
+        "next_action": "select_bowler",
+        "current_bowler_id": null,
+        "bowling": {
+          "p1": { "balls_bowled": 4, "runs_conceded": 0 },
+          "p2": { "balls_bowled": 2, "runs_conceded": 1 }
+        }
+      }
     }
   ],
 
@@ -542,12 +565,6 @@
       ],
       "candidate": { "bowler": "p1", "runs": 0 },
       "expect_error": "consecutive_overs"
-    },
-    {
-      "name": "the bowler cannot change mid-over",
-      "deliveries": [{ "striker": "a1", "non_striker": "a2", "runs": 0 }],
-      "candidate": { "bowler": "p2", "runs": 0 },
-      "expect_error": "bowler_changed_mid_over"
     },
     {
       "name": "a catch needs a fielder",

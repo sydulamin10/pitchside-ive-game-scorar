@@ -62,8 +62,8 @@ export default function NewMatch() {
   });
 
   const [format, setFormat] = useState<MatchFormat>("t20");
-  const [title, setTitle] = useState("");
-  const [venue, setVenue] = useState("");
+  const [title, setTitle] = useState("Old Dhaka Champion League");
+  const [venue, setVenue] = useState("Old Dhaka Cricket Stadium");
   const [oversLimit, setOversLimit] = useState<string>("20");
   const [playersPerSide, setPlayersPerSide] = useState("11");
   const [ballsPerOver, setBallsPerOver] = useState("6");
@@ -71,7 +71,7 @@ export default function NewMatch() {
   const [allowBoundaries, setAllowBoundaries] = useState(true);
   const [freeHit, setFreeHit] = useState(true);
   const [lastBatterAlone, setLastBatterAlone] = useState(false);
-  const [dls, setDls] = useState(false);
+  const [dls, setDls] = useState(true);
 
   const [sideA, setSideA] = useState<SideDraft>(EMPTY_SIDE);
   const [sideB, setSideB] = useState<SideDraft>(EMPTY_SIDE);

@@ -179,7 +179,7 @@ Logs default to `~/logs/pitchside-api.log`.
 
 ```powershell
 cd frontend
-$env:VITE_API_BASE_URL="https://api.odcc.nextframesoft.com"
+$env:VITE_API_BASE_URL="https://pitchside-api-kugn.onrender.com"
 npm.cmd ci
 npm.cmd run build
 Copy-Item ..\deploy\cpanel\web.htaccess .\dist\.htaccess -Force
@@ -189,7 +189,7 @@ Copy-Item ..\deploy\cpanel\web.htaccess .\dist\.htaccess -Force
 
 ```bat
 cd frontend
-set VITE_API_BASE_URL=https://api.odcc.nextframesoft.com
+set VITE_API_BASE_URL=https://pitchside-api-kugn.onrender.com
 npm ci
 npm run build
 copy /Y ..\deploy\cpanel\web.htaccess dist\.htaccess
@@ -205,7 +205,7 @@ Or one shot: `powershell -ExecutionPolicy Bypass -File deploy\cpanel\build-web.p
 ### 3.3 Verify
 
 - `https://web.odcc.nextframesoft.com/` loads the marketing/home page
-- Sign-in / API calls hit `https://api.odcc.nextframesoft.com`
+- Sign-in / API calls hit `https://pitchside-api-kugn.onrender.com` (Render). `api.odcc.nextframesoft.com` is unused until it CNAMEs there.
 - `https://web.odcc.nextframesoft.com/install` for phone home-screen icon (HTTPS required)
 
 ---
@@ -228,7 +228,8 @@ Or one shot: `powershell -ExecutionPolicy Bypass -File deploy\cpanel\build-web.p
 ## 5. Limits on shared cPanel
 
 - Idle/memory killers may stop uvicorn — cron `ensure-api.sh` restarts it.
-- **MediaMTX / phone camera ingest** is not included; scoring, public pages, and OBS overlays work without it.
+- **MediaMTX / phone camera ingest** is not included on shared cPanel; scoring, public pages, and OBS overlays work without it.
+- For in-app phone WHIP publish, run MediaMTX on a VPS/Docker host and set API ``MEDIAMTX_WHIP_BASE_URL`` to that host’s **public HTTPS** WHIP base (phones cannot use localhost). See [architecture.md](./architecture.md#stream-sessions-and-mediamtx).
 - Prefer a VPS + Docker ([`infra/docker-compose.yml`](../infra/docker-compose.yml)) if proxy is disabled or the process is killed constantly.
 
 See also [deployment.md](./deployment.md) for Neon/Upstash and general production env rules.

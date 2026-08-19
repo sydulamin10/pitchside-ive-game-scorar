@@ -138,7 +138,6 @@ that is wrong instead of showing a generic message. The full set lives in
 | `batter_already_out`            | That batter has already been dismissed                     |
 | `too_many_new_batters`          | Only one new batter comes in at a time (two at the start)   |
 | `consecutive_overs`             | A bowler cannot bowl two overs in succession               |
-| `bowler_changed_mid_over`       | The bowler changed part-way through an over                |
 | `wicket_illegal_on_free_hit`    | Only a run-out style dismissal is possible on a free hit    |
 | `wicket_illegal_on_no_ball`     | That dismissal cannot happen off a no-ball                  |
 | `wicket_illegal_on_wide`        | That dismissal cannot happen off a wide                     |

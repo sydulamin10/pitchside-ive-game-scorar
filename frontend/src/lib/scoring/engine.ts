@@ -52,6 +52,14 @@ export interface StrikeRepair {
   non_striker_id: string;
 }
 
+/** Projection-only crease correction applied after a delivery checkpoint. */
+export interface CreaseOverride {
+  after_sequence: number;
+  striker_id?: string | null;
+  non_striker_id?: string | null;
+  bowler_id?: string | null;
+}
+
 export interface ReplayResult {
   state: InningsState;
   repairs: StrikeRepair[];
@@ -64,8 +72,9 @@ export function buildInningsState(
   battingSquad: readonly PlayerRef[],
   bowlingSquad: readonly PlayerRef[],
   deliveries: readonly EngineDelivery[],
+  crease?: CreaseOverride | null,
 ): InningsState {
-  return replay(rules, battingSquad, bowlingSquad, deliveries).state;
+  return replay(rules, battingSquad, bowlingSquad, deliveries, { crease }).state;
 }
 
 export function replay(
@@ -73,11 +82,15 @@ export function replay(
   battingSquad: readonly PlayerRef[],
   bowlingSquad: readonly PlayerRef[],
   deliveries: readonly EngineDelivery[],
-  options: { strict?: boolean } = {},
+  options: { strict?: boolean; crease?: CreaseOverride | null } = {},
 ): ReplayResult {
-  return new Replayer(rules, battingSquad, bowlingSquad, options.strict ?? false).run(
-    deliveries,
-  );
+  return new Replayer(
+    rules,
+    battingSquad,
+    bowlingSquad,
+    options.strict ?? false,
+    options.crease ?? null,
+  ).run(deliveries);
 }
 
 /**
@@ -189,11 +202,18 @@ export function validateDelivery(
         );
       }
     } else if (state.current_bowler_id && event.bowler_id !== state.current_bowler_id) {
-      throw new RuleViolationError(
-        "The over is not finished — the same bowler must complete it.",
-        "bowler_changed_mid_over",
-        { expected_bowler_id: state.current_bowler_id },
-      );
+      // Injury replacement: a new bowler may finish an over in progress.
+      if (rules.max_overs_per_bowler !== null) {
+        const quota = rules.max_overs_per_bowler * rules.balls_per_over;
+        const card = state.bowling.find((b) => b.player_id === event.bowler_id);
+        if (card && card.balls_bowled >= quota) {
+          throw new RuleViolationError(
+            "That bowler has already bowled their maximum overs.",
+            "over_quota_reached",
+            { player_id: event.bowler_id },
+          );
+        }
+      }
     }
   }
 
@@ -416,6 +436,7 @@ function newBowler(playerId: string, name: string): BowlerAcc {
 class Replayer {
   private readonly rules: EngineRules;
   private readonly strict: boolean;
+  private readonly crease: CreaseOverride | null;
   private readonly battingSquad: PlayerRef[];
   private readonly battingNames = new Map<string, string>();
   private readonly bowlingNames = new Map<string, string>();
@@ -447,15 +468,18 @@ class Replayer {
   private freeHit = false;
   private isComplete = false;
   private endReason: InningsEndReason | null = null;
+  private creaseApplied = false;
 
   constructor(
     rules: EngineRules,
     battingSquad: readonly PlayerRef[],
     bowlingSquad: readonly PlayerRef[],
     strict: boolean,
+    crease: CreaseOverride | null = null,
   ) {
     this.rules = rules;
     this.strict = strict;
+    this.crease = crease;
     this.battingSquad = battingSquad.filter((p) => p.is_playing !== false);
     for (const p of battingSquad) this.battingNames.set(p.id, p.name);
     for (const p of bowlingSquad) this.bowlingNames.set(p.id, p.name);
@@ -474,7 +498,11 @@ class Replayer {
 
   run(deliveries: readonly EngineDelivery[]): ReplayResult {
     const ordered = [...deliveries].sort((a, b) => a.sequence - b.sequence);
-    for (const event of ordered) {
+    if (this.crease && this.crease.after_sequence === 0 && ordered.length === 0) {
+      this.applyCreaseOverride();
+    }
+    for (let index = 0; index < ordered.length; index += 1) {
+      const event = ordered[index]!;
       if (this.isComplete) {
         this.warnings.push(
           `Delivery ${event.sequence} was recorded after the innings ended ` +
@@ -485,9 +513,75 @@ class Replayer {
         this.endReason = null;
       }
       this.apply(event);
+      if (this.crease && !this.creaseApplied) {
+        const nextSeq = index + 1 < ordered.length ? ordered[index + 1]!.sequence : null;
+        const atCheckpoint =
+          event.sequence <= this.crease.after_sequence &&
+          (nextSeq === null || nextSeq > this.crease.after_sequence);
+        if (atCheckpoint) this.applyCreaseOverride();
+      }
       this.evaluateCompletion();
     }
+    if (this.crease && !this.creaseApplied) this.applyCreaseOverride();
     return { state: this.finalise(), repairs: this.repairs };
+  }
+
+  private applyCreaseOverride(): void {
+    if (!this.crease || this.creaseApplied) return;
+    this.creaseApplied = true;
+    const strikerId = this.crease.striker_id ?? null;
+    const nonStrikerId = this.crease.non_striker_id ?? null;
+    if (strikerId && nonStrikerId) {
+      const named = new Set([strikerId, nonStrikerId]);
+      const atCrease = new Set(
+        [this.striker, this.nonStriker].filter((id): id is string => Boolean(id)),
+      );
+      if (atCrease.size > 0) {
+        const same =
+          named.size === atCrease.size && [...named].every((id) => atCrease.has(id));
+        if (!same) {
+          const incoming = [...named].filter((id) => !atCrease.has(id));
+          const outgoing = [...atCrease].filter((id) => !named.has(id));
+          if (incoming.length === 1 && outgoing.length === 1) {
+            const newId = incoming[0]!;
+            if (this.batters.has(newId)) this.introduce(newId);
+          } else if (incoming.length > 1) {
+            this.warnings.push(
+              "Crease override named batters who were not at the crease; ignored ends.",
+            );
+            if (this.crease.bowler_id && this.currentOver) {
+              this.currentOver.bowler_id = this.crease.bowler_id;
+              this.currentOver.bowler_name =
+                this.bowlingNames.get(this.crease.bowler_id) ?? this.currentOver.bowler_name;
+            }
+            return;
+          }
+        }
+      }
+      this.striker = strikerId;
+      this.nonStriker = nonStrikerId;
+      for (const batterId of [strikerId, nonStrikerId]) {
+        if (this.batters.has(batterId)) this.introduce(batterId);
+      }
+      const partnership = this.partnerships.at(-1);
+      if (
+        partnership &&
+        new Set([this.striker, this.nonStriker]).size === 2 &&
+        !(
+          (partnership.batter_a_id === this.striker &&
+            partnership.batter_b_id === this.nonStriker) ||
+          (partnership.batter_a_id === this.nonStriker &&
+            partnership.batter_b_id === this.striker)
+        )
+      ) {
+        this.openPartnership();
+      }
+    }
+    if (this.crease.bowler_id && this.currentOver) {
+      this.currentOver.bowler_id = this.crease.bowler_id;
+      this.currentOver.bowler_name =
+        this.bowlingNames.get(this.crease.bowler_id) ?? this.currentOver.bowler_name;
+    }
   }
 
   // -------------------------------------------------------------- one ball
@@ -706,6 +800,10 @@ class Replayer {
       };
       this.oversList.push(this.currentOver);
       this.overRunsCharged = 0;
+    } else if (this.currentOver && event.bowler_id !== this.currentOver.bowler_id) {
+      this.currentOver.bowler_id = event.bowler_id;
+      this.currentOver.bowler_name =
+        this.bowlingNames.get(event.bowler_id) ?? "Unknown bowler";
     }
 
     let bowler = this.bowlers.get(event.bowler_id);

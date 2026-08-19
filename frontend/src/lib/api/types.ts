@@ -357,7 +357,13 @@ export interface MatchHeader {
   completed_at: string | null;
   state_version: number;
   share_url: string;
-  tournament: { id: string; name: string; slug: string; round: string | null } | null;
+  tournament: {
+    id: string;
+    name: string;
+    slug: string;
+    round: string | null;
+    logo_url?: string | null;
+  } | null;
   teams: { a: TeamBadge; b: TeamBadge };
   toss: { winner_team_id: string | null; decision: TossDecision | null };
   rules: MatchRules;
@@ -593,6 +599,7 @@ export interface CompactState {
     name: string;
     slug: string;
     round: string | null;
+    logo_url?: string | null;
   } | null;
   toss?: {
     winner?: TeamBadge | null;

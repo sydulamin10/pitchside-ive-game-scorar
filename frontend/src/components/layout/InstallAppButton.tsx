@@ -1,5 +1,5 @@
 /**
- * Install / Open app — native PWA install, or desktop shortcut download + open.
+ * Install app — native PWA only (home screen / Start menu icon, standalone window).
  */
 
 import { Download, Share, X } from "lucide-react";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/Button";
 import {
   installOrOpenApp,
   isAndroid,
+  isDesktopOs,
+  isIosSafari,
   isStandaloneDisplay,
   useInstallPrompt,
 } from "@/lib/pwaInstall";
@@ -28,8 +30,8 @@ export function InstallAppButton({
 }) {
   const navigate = useNavigate();
   const installed = useInstallPrompt((s) => s.installed);
-  const iosHintOpen = useInstallPrompt((s) => s.iosHintOpen);
-  const setIosHintOpen = useInstallPrompt((s) => s.setIosHintOpen);
+  const tipOpen = useInstallPrompt((s) => s.tipOpen);
+  const setTipOpen = useInstallPrompt((s) => s.setTipOpen);
   const standalone = isStandaloneDisplay();
 
   const buttonLabel =
@@ -42,18 +44,35 @@ export function InstallAppButton({
     }
     const result = await installOrOpenApp();
     if (result === "accepted") {
-      toast("Installed. Shortcut is on your home screen / app list.", "success");
-    } else if (result === "desktop-shortcut") {
-      toast(
-        "Shortcut file downloaded — open it once to put Pitchside on your Desktop.",
-        "success",
-      );
+      toast("Installed — open ODCC LIVE from your home screen or app list.", "success");
     }
   };
 
-  const mobileTip = isAndroid()
-    ? "Open this site with https:// (see /install checklist). Then tap Add to Home Screen — Chrome will show Install and put the Pitchside logo on your home screen."
-    : "Tap Share → Add to Home Screen → Add. The Pitchside logo appears on your home screen.";
+  const tipTitle = isIosSafari()
+    ? "Add icon on iPhone"
+    : isAndroid()
+      ? "Add icon on Android"
+      : "Install on this computer";
+
+  const tipBody = isIosSafari() ? (
+    <>
+      Tap <Share aria-hidden="true" className="inline size-3.5 text-flip" /> Share →{" "}
+      <strong className="text-chalk">Add to Home Screen</strong> → Add. Opens fullscreen like an
+      app.
+    </>
+  ) : isAndroid() ? (
+    <>
+      Chrome menu (⋮) → <strong className="text-chalk">Install app</strong> or{" "}
+      <strong className="text-chalk">Add to Home screen</strong>. The ODCC LIVE logo appears on
+      your home screen.
+    </>
+  ) : (
+    <>
+      In <strong className="text-chalk">Chrome</strong> or Edge: address bar install icon, or menu
+      (⋮) → <strong className="text-chalk">Install ODCC LIVE</strong> / Install app. It opens in
+      its own window — no browser tabs.
+    </>
+  );
 
   return (
     <>
@@ -68,43 +87,40 @@ export function InstallAppButton({
         {buttonLabel}
       </Button>
 
-      {iosHintOpen && (
+      {tipOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-ink/70 p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="ios-install-title"
+          aria-labelledby="install-tip-title"
         >
           <div className="w-full max-w-sm rounded-[4px] border border-willow/30 bg-pitch p-4 shadow-tile">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p
-                  id="ios-install-title"
+                  id="install-tip-title"
                   className="font-sans text-sm font-semibold text-chalk"
                 >
-                  {isAndroid() ? "Add icon on Android" : "Add icon on iPhone"}
+                  {tipTitle}
                 </p>
-                <p className="mt-2 font-sans text-xs leading-relaxed text-willow">
-                  {isAndroid() ? (
-                    mobileTip
-                  ) : (
-                    <>
-                      Tap <Share aria-hidden="true" className="inline size-3.5 text-flip" /> Share
-                      → <strong className="text-chalk">Add to Home Screen</strong>.
-                    </>
-                  )}
-                </p>
+                <p className="mt-2 font-sans text-xs leading-relaxed text-willow">{tipBody}</p>
+                {isDesktopOs() && (
+                  <p className="mt-2 font-sans text-xs text-willow">
+                    Stay on <strong className="text-chalk">https://</strong> and wait a few seconds
+                    for Install to appear.
+                  </p>
+                )}
               </div>
               <button
                 type="button"
                 aria-label="Close"
                 className="rounded-[2px] p-1 text-willow hover:text-chalk"
-                onClick={() => setIosHintOpen(false)}
+                onClick={() => setTipOpen(false)}
               >
                 <X className="size-4" />
               </button>
             </div>
-            <Button className="mt-4 w-full" size="sm" onClick={() => setIosHintOpen(false)}>
+            <Button className="mt-4 w-full" size="sm" onClick={() => setTipOpen(false)}>
               OK
             </Button>
           </div>

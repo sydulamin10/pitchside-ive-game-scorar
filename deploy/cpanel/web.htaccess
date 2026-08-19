@@ -19,12 +19,17 @@
 
 # Hashed Vite assets — immutable
 <IfModule mod_headers.c>
-  <FilesMatch "\.(?:js|css|woff2?)$">
+  <FilesMatch "^(?!sw\.js$|runtime-config\.js$).+\.(?:js|css|woff2?)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 
   # Service worker must never stick to an old deploy
   <Files "sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
+
+  # API origin override — must not be cached as an immutable hashed asset
+  <Files "runtime-config.js">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
   </Files>
 

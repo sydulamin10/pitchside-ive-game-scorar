@@ -319,6 +319,34 @@ export const scoring = {
     }),
   undo: (matchId: string, inningsId?: string) =>
     api.post<ScoringResponse>(`/matches/${matchId}/undo`, { innings_id: inningsId ?? null }),
+  changeBowler: (
+    matchId: string,
+    input: { bowler_id: string; expected_state_version?: number | null },
+    inningsId?: string,
+  ) =>
+    api.post<ScoringResponse>(`/matches/${matchId}/crease/bowler`, input, {
+      query: inningsId ? { innings_id: inningsId } : undefined,
+    }),
+  swapEnds: (
+    matchId: string,
+    input: { expected_state_version?: number | null } = {},
+    inningsId?: string,
+  ) =>
+    api.post<ScoringResponse>(`/matches/${matchId}/crease/swap-ends`, input, {
+      query: inningsId ? { innings_id: inningsId } : undefined,
+    }),
+  setBatters: (
+    matchId: string,
+    input: {
+      striker_id: string;
+      non_striker_id: string;
+      expected_state_version?: number | null;
+    },
+    inningsId?: string,
+  ) =>
+    api.post<ScoringResponse>(`/matches/${matchId}/crease/ends`, input, {
+      query: inningsId ? { innings_id: inningsId } : undefined,
+    }),
 };
 
 // ------------------------------------------------------------- tournaments
