@@ -9,14 +9,14 @@
  *
  * The rules, in one place:
  *
- *   navigations      cache-first on the app shell, revalidated in the background,
- *                    so the scoring console opens with no signal at all
+ *   navigations      network-first on the app shell, cached fallback offline
+ *   SPA paths        same as navigations (`/app/matches/new` is not a data API)
  *   /assets/*        cache-first and kept forever (the filenames are hashed)
  *   other GETs       network-first, falling back to the last good response
  *   anything else    passed straight through, untouched
  */
 
-const VERSION = "v4";
+const VERSION = "v6";
 const SHELL_CACHE = `pitchside-shell-${VERSION}`;
 const ASSET_CACHE = `pitchside-assets-${VERSION}`;
 const DATA_CACHE = `pitchside-data-${VERSION}`;
@@ -28,7 +28,7 @@ const SHELL_FILES = [
   "/",
   "/app",
   "/manifest.webmanifest",
-  "/icons/seam.svg",
+  "/branding/odcc-live.png",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];
@@ -75,13 +75,16 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (request.mode === "navigate") {
-    event.respondWith(shell(request));
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/")) {
+    event.respondWith(cacheFirst(request, ASSET_CACHE));
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/")) {
-    event.respondWith(cacheFirst(request, ASSET_CACHE));
+  // Client-side routes have no file extension. Chrome sometimes fetches them
+  // with mode !== "navigate"; treating that as data makes Start Match look offline.
+  const last = url.pathname.split("/").pop() ?? "";
+  if (request.mode === "navigate" || !last.includes(".")) {
+    event.respondWith(shell(request));
     return;
   }
 
@@ -131,6 +134,6 @@ async function networkFirst(request, cacheName) {
   } catch {
     const cached = await cache.match(request);
     if (cached) return cached;
-    throw new Error("offline and nothing cached for this request");
+    return new Response("Offline", { status: 503, statusText: "Offline" });
   }
 }

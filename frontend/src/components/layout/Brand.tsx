@@ -1,5 +1,18 @@
 import { cn } from "@/lib/utils";
 
+export const BRAND_LOGO_SRC = "/branding/odcc-live.png";
+
+/** The official ODCC LIVE mark — use this in chrome, not the seam doodle. */
+export function BrandLogo({ className }: { className?: string }) {
+  return (
+    <img
+      src={BRAND_LOGO_SRC}
+      alt="ODCC LIVE"
+      className={cn("h-10 w-10 object-contain", className)}
+    />
+  );
+}
+
 /**
  * The mark: a cricket ball's seam. Two stitched arcs, no wordmark inside it, so
  * it survives being 16px in a browser tab.

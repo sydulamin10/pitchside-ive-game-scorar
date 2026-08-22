@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 import { toastError } from "@/store/toast";
 
-import { SeamMark } from "./Brand";
+import { BrandLogo } from "./Brand";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { InstallAppButton } from "./InstallAppButton";
 
@@ -44,11 +44,8 @@ export function AppShell() {
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-pitch-line bg-pitch/95 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link to="/app" className="flex items-center gap-2.5">
-            <SeamMark className="size-6" />
-            <span className="font-sans text-base font-bold tracking-tight text-chalk">
-              ODCC LIVE
-            </span>
+          <Link to="/app" className="flex items-center">
+            <BrandLogo />
           </Link>
 
           <nav aria-label="Main" className="hidden items-center gap-1 md:flex">

@@ -5,7 +5,7 @@
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 
-import { SeamMark } from "@/components/layout/Brand";
+import { BrandLogo } from "@/components/layout/Brand";
 import { StandingsTable } from "@/components/ledger/StandingsTable";
 import { Button } from "@/components/ui/Button";
 import { Badge, EmptyState, Panel, Seam, SectionTitle, Spinner } from "@/components/ui/Surface";
@@ -71,11 +71,8 @@ export default function PublicTournament() {
   return (
     <div className="min-h-dvh bg-pitch">
       <header className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-        <Link to="/" className="flex items-center gap-2">
-          <SeamMark className="size-6" />
-          <span className="font-sans text-sm font-semibold tracking-wide text-chalk">
-            Pitchside
-          </span>
+        <Link to="/" className="flex items-center">
+          <BrandLogo />
         </Link>
         <Button
           size="sm"

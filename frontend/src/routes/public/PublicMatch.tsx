@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ScoreBoard } from "@/components/board/ScoreBoard";
 import { MatchAwardsPanel } from "@/components/broadcast/MatchAwardsPanel";
 import { MatchResultShare } from "@/components/broadcast/MatchResultShare";
-import { SeamMark } from "@/components/layout/Brand";
+import { BrandLogo } from "@/components/layout/Brand";
 import { InningsScorecard } from "@/components/ledger/Scorecard";
 import { Button } from "@/components/ui/Button";
 import { Badge, EmptyState, Panel, Seam, SectionTitle, Spinner } from "@/components/ui/Surface";
@@ -97,11 +97,8 @@ export default function PublicMatch() {
   return (
     <div className="min-h-dvh bg-pitch">
       <header className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-        <Link to="/" className="flex items-center gap-2">
-          <SeamMark className="size-6" />
-          <span className="font-sans text-sm font-semibold tracking-wide text-chalk">
-            Pitchside
-          </span>
+        <Link to="/" className="flex items-center">
+          <BrandLogo />
         </Link>
         <div className="flex items-center gap-2">
           <Badge tone={stream.status === "live" ? "live" : "quiet"}>

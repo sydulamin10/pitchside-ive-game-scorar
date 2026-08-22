@@ -111,17 +111,21 @@ def create_app() -> FastAPI:
         swagger_ui_parameters={"persistAuthorization": True},
     )
 
-    # Middleware runs bottom-up on the way in: the outermost entry here is the
-    # last one added, so request context wraps everything and is always logged.
+    # Middleware runs bottom-up on the way in: the last add_middleware call is
+    # the outermost. CORS must wrap TrustedHost so a 400 Invalid Host still
+    # carries Access-Control-Allow-Origin (otherwise the browser reports CORS).
     app.add_middleware(GZipMiddleware, minimum_size=1_024, compresslevel=5)
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.MAX_REQUEST_BODY_BYTES)
     app.add_middleware(SecurityHeadersMiddleware)
+    if settings.ALLOWED_HOSTS and settings.ALLOWED_HOSTS != ["*"]:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
+    app.add_middleware(RequestContextMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS", "HEAD"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-Id", "If-None-Match"],
+        allow_headers=["*"],
         expose_headers=[
             "X-Request-Id",
             "ETag",
@@ -132,9 +136,6 @@ def create_app() -> FastAPI:
         ],
         max_age=600,
     )
-    if settings.ALLOWED_HOSTS and settings.ALLOWED_HOSTS != ["*"]:
-        app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
-    app.add_middleware(RequestContextMiddleware)
     if settings.METRICS_ENABLED:
         _mount_metrics(app)
 

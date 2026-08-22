@@ -32,9 +32,10 @@ function OdccMark({ tone = "dark" }: { tone?: "dark" | "light" | "gold" | "muted
           ? "text-ink/35"
           : "text-ink/45";
   return (
-    <p className={cn("mt-0.5 font-sans text-[7px] font-semibold tracking-[0.2em] uppercase", color)}>
-      ODCC LIVE
-    </p>
+    <div className={cn("mt-0.5 flex items-center gap-1", color)}>
+      <img src="/branding/odcc-live.png" alt="" className="h-3.5 w-3.5 object-contain" />
+      <p className="font-sans text-[7px] font-semibold tracking-[0.2em] uppercase">ODCC LIVE</p>
+    </div>
   );
 }
 

@@ -21,6 +21,7 @@ from pydantic import (
     ValidationInfo,
     computed_field,
     field_validator,
+    model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -216,6 +217,26 @@ class Settings(BaseSettings):
                 continue
             AnyHttpUrl(origin)  # raises on malformed origins
         return [o.rstrip("/") for o in value]
+
+    @model_validator(mode="after")
+    def _allow_public_api_host(self) -> Settings:
+        """Always accept the Host header of PUBLIC_API_URL.
+
+        Operators often list only a custom domain in ALLOWED_HOSTS while the
+        browser still calls the *.onrender.com URL. That 400 has no CORS
+        headers and shows up as a failed match create.
+        """
+        if "*" in self.ALLOWED_HOSTS:
+            return self
+        host = urlsplit(self.PUBLIC_API_URL).hostname
+        extra: list[str] = []
+        if host and host not in self.ALLOWED_HOSTS:
+            extra.append(host)
+        if host and host.endswith(".onrender.com") and "*.onrender.com" not in self.ALLOWED_HOSTS:
+            extra.append("*.onrender.com")
+        if extra:
+            object.__setattr__(self, "ALLOWED_HOSTS", [*self.ALLOWED_HOSTS, *extra])
+        return self
 
     # ------------------------------------------------------------ computed
     @computed_field  # type: ignore[prop-decorator]

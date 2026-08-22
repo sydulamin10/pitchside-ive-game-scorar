@@ -28,6 +28,7 @@ def test_security_headers_are_applied(client):
     assert headers["x-content-type-options"] == "nosniff"
     assert headers["x-frame-options"] == "DENY"
     assert headers["referrer-policy"] == "no-referrer"
+    assert headers["cross-origin-resource-policy"] == "cross-origin"
     assert "default-src 'none'" in headers["content-security-policy"]
 
 
@@ -106,6 +107,22 @@ def test_cors_allows_the_configured_web_origin(client):
     )
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_cors_allows_authorized_match_create_preflight(client):
+    response = client.options(
+        "/api/v1/matches",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type,accept",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    allowed = response.headers.get("access-control-allow-headers", "").lower()
+    assert "authorization" in allowed
+    assert "content-type" in allowed
 
 
 def test_cors_refuses_an_unknown_origin(client):

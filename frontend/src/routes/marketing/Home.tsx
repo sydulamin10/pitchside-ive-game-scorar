@@ -2,7 +2,7 @@ import { ArrowRight, Link2, PencilLine, Radio, Trophy, WifiOff } from "lucide-re
 import { Link } from "react-router";
 
 import { FlapNumber, FlapText } from "@/components/board/SplitFlap";
-import { BatMark } from "@/components/layout/Brand";
+import { BatMark, BrandLogo } from "@/components/layout/Brand";
 import { InstallAppButton } from "@/components/layout/InstallAppButton";
 import { Button } from "@/components/ui/Button";
 import { Badge, LiveDot, Panel, Paper, Seam, SectionTitle } from "@/components/ui/Surface";
@@ -119,7 +119,8 @@ export function Home() {
     <>
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 lg:grid-cols-2 lg:py-20">
         <div>
-          <p className="font-sans text-sm font-bold tracking-[0.18em] text-flip uppercase">
+          <BrandLogo className="h-16 w-16" />
+          <p className="mt-4 font-sans text-sm font-bold tracking-[0.18em] text-flip uppercase">
             ODCC LIVE
           </p>
           <h1 className="mt-3 text-3xl sm:text-4xl lg:text-5xl">

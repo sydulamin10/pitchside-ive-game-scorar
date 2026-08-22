@@ -25,7 +25,9 @@ export const API_ORIGIN = resolveApiOrigin();
 export const API_BASE = `${API_ORIGIN}/api/v1`;
 
 const REFRESH_STORAGE_KEY = "pitchside.refresh";
-const DEFAULT_TIMEOUT_MS = 15_000;
+/** Render free-tier wake can exceed 15s; aborting mid-flight looks like a CORS failure. */
+const DEFAULT_TIMEOUT_MS = 45_000;
+const WRITE_TIMEOUT_MS = 60_000;
 
 export interface ApiErrorBody {
   error?: {
@@ -244,7 +246,9 @@ async function send<T>(path: string, options: RequestOptions, retryOn401: boolea
     if (token) requestHeaders.authorization = `Bearer ${token}`;
   }
 
-  const timeout = AbortSignal.timeout(timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const defaultTimeout =
+    method === "GET" || method === "HEAD" ? DEFAULT_TIMEOUT_MS : WRITE_TIMEOUT_MS;
+  const timeout = AbortSignal.timeout(timeoutMs ?? defaultTimeout);
   const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
 
   let response: Response;
@@ -262,7 +266,7 @@ async function send<T>(path: string, options: RequestOptions, retryOn401: boolea
     throw new ApiError(
       0,
       "network_error",
-      "Could not reach the server. Your work is saved on this device.",
+      "Could not reach the server. If this is the first request in a while, wait a few seconds and try again.",
       {},
       undefined,
     );

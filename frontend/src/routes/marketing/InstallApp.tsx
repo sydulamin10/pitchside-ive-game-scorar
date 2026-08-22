@@ -34,11 +34,11 @@ export default function InstallAppPage() {
     <div className="mx-auto flex max-w-lg flex-col gap-4 px-4 py-10">
       <div className="flex flex-col items-center text-center">
         <img
-          src="/icons/icon-192.png"
+          src="/branding/odcc-live.png"
           alt="ODCC LIVE"
           width={96}
           height={96}
-          className="rounded-[18px] border border-willow/30 shadow-tile"
+          className="h-24 w-24 object-contain"
         />
         <h1 className="mt-4 font-sans text-2xl font-bold text-chalk">Install ODCC LIVE</h1>
         <p className="mt-2 font-sans text-sm text-willow">

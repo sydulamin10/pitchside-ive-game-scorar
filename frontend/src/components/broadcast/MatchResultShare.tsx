@@ -70,7 +70,9 @@ export function MatchResultShare({
             "text-chalk shadow-tile",
           )}
         >
-          <div className="border-b border-flip/30 px-5 py-4">
+          <div className="flex items-center gap-2 border-b border-flip/30 px-5 py-4">
+            <img src="/branding/odcc-live.png" alt="" className="h-9 w-9 object-contain" />
+            <div>
             <p className="font-sans text-[10px] tracking-[0.2em] text-flip uppercase">ODCC LIVE</p>
             <h2 className="mt-1 font-sans text-lg font-bold leading-tight text-chalk">
               {match.title}
@@ -80,6 +82,7 @@ export function MatchResultShare({
                 {[match.venue, match.tournament?.name].filter(Boolean).join(" · ")}
               </p>
             )}
+            </div>
           </div>
 
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-5 py-5">

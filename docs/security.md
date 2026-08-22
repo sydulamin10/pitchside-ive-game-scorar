@@ -90,7 +90,8 @@ Request bodies are capped at 1 MiB and rejected **before** being buffered into m
 The API returns JSON only, so it ships a maximally strict policy:
 `default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
 plus `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
-`Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy`. HSTS is added in
+`Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy: cross-origin`
+(the web app is hosted on a different site than the API). HSTS is added in
 production. The interactive docs get a narrowly relaxed policy, and only they.
 
 The web app is served by nginx with its own header set, repeated in every location

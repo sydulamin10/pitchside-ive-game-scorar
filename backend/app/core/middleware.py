@@ -89,7 +89,10 @@ class SecurityHeadersMiddleware:
             ("x-frame-options", "DENY"),
             ("referrer-policy", "no-referrer"),
             ("cross-origin-opener-policy", "same-origin"),
-            ("cross-origin-resource-policy", "same-site"),
+            # The web app is on a different site (cPanel vs Render), so CORP
+            # must be cross-origin. `same-site` makes Chrome hide the response
+            # and report a CORS failure on POST /matches even when ACAO is set.
+            ("cross-origin-resource-policy", "cross-origin"),
             ("permissions-policy", "camera=(self), microphone=(self), geolocation=()"),
             (
                 "content-security-policy",

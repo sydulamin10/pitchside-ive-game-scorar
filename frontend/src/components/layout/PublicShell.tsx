@@ -5,7 +5,7 @@ import { Seam } from "@/components/ui/Surface";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 
-import { SeamMark } from "./Brand";
+import { BrandLogo } from "./Brand";
 import { InstallAppButton } from "./InstallAppButton";
 
 const NAV = [
@@ -53,11 +53,8 @@ export function PublicShell() {
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-pitch-line">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link to="/" className="flex items-center gap-2.5">
-            <SeamMark className="size-6" />
-            <span className="font-sans text-base font-bold tracking-tight text-chalk">
-              ODCC LIVE
-            </span>
+          <Link to="/" className="flex items-center">
+            <BrandLogo />
           </Link>
 
           <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
@@ -112,9 +109,8 @@ export function PublicShell() {
         <Seam />
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <div className="flex items-center gap-2">
-              <SeamMark className="size-5" />
-              <span className="font-sans text-sm font-bold text-chalk">ODCC LIVE</span>
+            <div className="flex items-center">
+              <BrandLogo className="h-12 w-12" />
             </div>
             <p className="mt-2 max-w-xs text-sm text-willow-soft">
               Live Every Ball. Feel Every Run. A scorer's ledger for club, gully, box and turf
