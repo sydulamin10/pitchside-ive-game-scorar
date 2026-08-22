@@ -7,8 +7,10 @@
  * `VITE_` variable — the backend holds the keys.
  */
 interface Window {
-  /** Set in `/runtime-config.js` so the API origin can change without a rebuild. */
+  /** Set in `/runtime-config.js` so the API origin can change without a rebuild. Empty = same origin. */
   __PITCHSIDE_API_BASE_URL__?: string;
+  /** Render origin for SSE. Used when REST goes through the cPanel /api proxy. */
+  __PITCHSIDE_STREAM_BASE_URL__?: string;
 }
 
 interface ImportMetaEnv {

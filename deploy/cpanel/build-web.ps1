@@ -19,11 +19,13 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Copy-Item (Join-Path $PSScriptRoot "web.htaccess") (Join-Path $frontend "dist\.htaccess") -Force
 $runtime = Join-Path $frontend "dist\runtime-config.js"
+$renderApi = $env:VITE_API_BASE_URL
+# Browser REST goes same-origin through api-proxy.php; SSE still hits Render.
 [System.IO.File]::WriteAllText(
   $runtime,
-  "window.__PITCHSIDE_API_BASE_URL__ = `"$($env:VITE_API_BASE_URL)`";"
+  "window.__PITCHSIDE_API_BASE_URL__ = `"`";`nwindow.__PITCHSIDE_STREAM_BASE_URL__ = `"$renderApi`";"
 )
 Write-Host ""
 Write-Host "Upload everything inside: $frontend\dist"
 Write-Host "  → web.odcc.nextframesoft.com document root"
-Write-Host "API base: $env:VITE_API_BASE_URL"
+Write-Host "REST: same origin /api  SSE: $renderApi"

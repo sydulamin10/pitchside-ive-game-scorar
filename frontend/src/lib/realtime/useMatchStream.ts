@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { API_BASE } from "@/lib/api/client";
+import { API_BASE, STREAM_BASE } from "@/lib/api/client";
 import type { CompactState } from "@/lib/api/types";
 
 export type StreamStatus = "connecting" | "live" | "polling" | "offline";
@@ -118,7 +118,7 @@ export function useMatchStream(
     const connect = () => {
       if (disposed) return;
       setStatus((current) => (current === "live" ? current : "connecting"));
-      source = new EventSource(`${API_BASE}/stream/matches/${slug}`);
+      source = new EventSource(`${STREAM_BASE}/stream/matches/${slug}`);
 
       const onFrame = (event: MessageEvent<string>) => {
         failuresRef.current = 0;

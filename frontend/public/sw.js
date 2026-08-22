@@ -16,7 +16,7 @@
  *   anything else    passed straight through, untouched
  */
 
-const VERSION = "v6";
+const VERSION = "v7";
 const SHELL_CACHE = `pitchside-shell-${VERSION}`;
 const ASSET_CACHE = `pitchside-assets-${VERSION}`;
 const DATA_CACHE = `pitchside-data-${VERSION}`;
@@ -74,6 +74,10 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // PHP proxy to Render — never treat /api as an SPA document.
+  if (url.pathname.startsWith("/api/") || url.pathname === "/api" || url.pathname.endsWith("/api-proxy.php")) {
+    return;
+  }
 
   if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/")) {
     event.respondWith(cacheFirst(request, ASSET_CACHE));

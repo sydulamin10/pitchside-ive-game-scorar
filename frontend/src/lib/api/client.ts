@@ -14,15 +14,29 @@
  */
 
 function resolveApiOrigin(): string {
-  const runtime =
-    typeof window !== "undefined" ? window.__PITCHSIDE_API_BASE_URL__?.trim() : "";
-  const baked = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
-  return (runtime || baked).replace(/\/+$/, "");
+  // An explicit empty string means same-origin (cPanel PHP proxy). Do not fall
+  // through to the baked Render URL — that is what triggered browser CORS.
+  if (typeof window !== "undefined" && "__PITCHSIDE_API_BASE_URL__" in window) {
+    return String(window.__PITCHSIDE_API_BASE_URL__ ?? "").trim().replace(/\/+$/, "");
+  }
+  return (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
 }
 
-/** API origin (no `/api` suffix). Runtime config wins over the Vite build-time value. */
+function resolveStreamOrigin(): string {
+  if (typeof window !== "undefined") {
+    const stream = window.__PITCHSIDE_STREAM_BASE_URL__?.trim();
+    if (stream) return stream.replace(/\/+$/, "");
+  }
+  const api = resolveApiOrigin();
+  const baked = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
+  return (api || baked).replace(/\/+$/, "");
+}
+
+/** API origin (no `/api` suffix). Empty = same host via /api proxy. */
 export const API_ORIGIN = resolveApiOrigin();
 export const API_BASE = `${API_ORIGIN}/api/v1`;
+/** EventSource cannot go through PHP; keep live score on Render. */
+export const STREAM_BASE = `${resolveStreamOrigin()}/api/v1`;
 
 const REFRESH_STORAGE_KEY = "pitchside.refresh";
 /** Render free-tier wake can exceed 15s; aborting mid-flight looks like a CORS failure. */
@@ -203,7 +217,7 @@ async function refreshAccessToken(): Promise<string | null> {
         method: "POST",
         headers: { "content-type": "application/json" },
         // The token may instead be in an httpOnly cookie, hence `credentials`.
-        credentials: "include",
+        credentials: "same-origin",
         body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
       });
       if (!response.ok) {
@@ -256,7 +270,7 @@ async function send<T>(path: string, options: RequestOptions, retryOn401: boolea
     response = await fetch(buildUrl(path, query), {
       method,
       headers: requestHeaders,
-      credentials: "include",
+      credentials: "same-origin",
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: combined,
     });

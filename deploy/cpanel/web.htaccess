@@ -13,6 +13,10 @@
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
+  # Same-origin API → Render (avoids browser CORS on Start Match)
+  RewriteRule ^api/(.*)$ api-proxy.php?ps_path=$1 [QSA,L]
+  RewriteRule ^api$ api-proxy.php?ps_path= [QSA,L]
+
   # SPA fallback
   RewriteRule ^ index.html [L]
 </IfModule>
