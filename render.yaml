@@ -10,6 +10,8 @@ services:
     dockerContext: ./backend
     plan: free
     healthCheckPath: /healthz
+    # Ignored on the free plan. The Docker CMD and app lifespan still run
+    # `alembic upgrade head` so a sleeping Neon + new ORM columns cannot 500.
     preDeployCommand: alembic upgrade head
     envVars:
       - key: ENV

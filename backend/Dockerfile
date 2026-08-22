@@ -49,7 +49,9 @@ EXPOSE 8000
 
 # Readiness checks the database and the cache; the platform's own health probe
 # should use this same path so a degraded instance is taken out of rotation.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+# start-period is long because Render free + Neon free both cold-start, and
+# alembic must finish before /ready is meaningful.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8000/api/v1/health/ready || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
@@ -60,4 +62,6 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 # so any number of containers stay in step.
 #
 # PORT is read at runtime so PaaS hosts (Render, Railway, Fly) can inject it.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*' --timeout-graceful-shutdown 25 --no-server-header --no-access-log"]
+# Render free never runs preDeployCommand, so migrate here (with retries for a
+# sleeping Neon) before listening. A second pass in app lifespan is a no-op.
+CMD ["sh", "-c", "n=0; until alembic upgrade head; do n=$((n+1)); [ \"$n\" -ge 8 ] && exit 1; sleep $((n*2)); done; exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*' --timeout-graceful-shutdown 25 --no-server-header --no-access-log"]

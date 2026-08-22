@@ -98,6 +98,9 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------- database
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/pitchside"
+    #: Run ``alembic upgrade head`` on production/staging start-up. Render free
+    #: skips pre-deploy, so this is how schema stays in step with the ORM.
+    AUTO_MIGRATE: bool = True
     DB_POOL_SIZE: int = Field(default=5, ge=1)
     DB_MAX_OVERFLOW: int = Field(default=10, ge=0)
     DB_POOL_RECYCLE_SECONDS: int = Field(default=1_800, ge=60)

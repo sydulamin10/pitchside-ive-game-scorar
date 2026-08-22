@@ -17,6 +17,7 @@ from typing import Any
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.logging import get_logger
@@ -137,6 +138,64 @@ def _request_id(request: Request) -> str | None:
     return getattr(request.state, "request_id", None)
 
 
+def sqlstate_of(exc: BaseException) -> str | None:
+    """Postgres SQLSTATE from a SQLAlchemy or DBAPI exception, if present."""
+    orig = getattr(exc, "orig", None)
+    for candidate in (orig, exc):
+        for attr in ("sqlstate", "pgcode"):
+            value = getattr(candidate, attr, None)
+            if value:
+                return str(value)
+    return None
+
+
+def app_error_for_db(exc: DBAPIError) -> AppError:
+    """Map a driver error to the public envelope without leaking SQL."""
+    sqlstate = sqlstate_of(exc)
+    detail = str(getattr(exc, "orig", None) or exc).lower()
+
+    if isinstance(exc, IntegrityError) or sqlstate in {"23505", "23503"}:
+        if "uq_matches_public_slug" in detail:
+            return Conflict(
+                "Could not reserve a unique match link. Please try again.",
+                code="slug_conflict",
+            )
+        if "uq_teams_owner_name" in detail:
+            return Conflict("You already have a team with that name.", code="team_name_taken")
+        if "uq_match_players_order" in detail:
+            return Conflict(
+                "Batting order numbers must be unique.", code="duplicate_batting_order"
+            )
+        return Conflict(
+            "This could not be saved because it conflicts with existing data.",
+            code="conflict",
+        )
+    if sqlstate == "23514":
+        return UnprocessableEntity(
+            "One of the values is not allowed for this match.",
+            code="constraint_violation",
+        )
+    if sqlstate == "23502":
+        return UnprocessableEntity("A required value was missing.", code="not_null_violation")
+    if sqlstate in {"42703", "42P01"} or "undefined column" in detail or (
+        "does not exist" in detail and ("column" in detail or "relation" in detail)
+    ):
+        return ServiceUnavailable(
+            "The scoring database is being updated. Wait a few seconds and try again.",
+            code="schema_outdated",
+        )
+    if isinstance(exc, OperationalError) or (sqlstate or "").startswith("08"):
+        return ServiceUnavailable(
+            "The database is waking up or unreachable. Please retry.",
+            code="database_unavailable",
+        )
+    return AppError(
+        "Something went wrong on our side. The incident was logged.",
+        code="internal_error",
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(request: Request, exc: AppError) -> JSONResponse:
@@ -160,6 +219,30 @@ def register_exception_handlers(app: FastAPI) -> None:
             payload["error"]["request_id"] = request_id
         return JSONResponse(
             status_code=exc.status_code, content=payload, headers=exc.headers or None
+        )
+
+    @app.exception_handler(DBAPIError)
+    async def _db_error(request: Request, exc: DBAPIError) -> JSONResponse:
+        mapped = app_error_for_db(exc)
+        if mapped.status_code >= 500:
+            logger.error(
+                "database_error",
+                path=request.url.path,
+                method=request.method,
+                sqlstate=sqlstate_of(exc),
+                exc_info=exc,
+            )
+        else:
+            logger.warning(
+                "database_error",
+                path=request.url.path,
+                method=request.method,
+                code=mapped.code,
+                sqlstate=sqlstate_of(exc),
+            )
+        return JSONResponse(
+            status_code=mapped.status_code,
+            content=mapped.to_payload(_request_id(request)),
         )
 
     @app.exception_handler(RequestValidationError)

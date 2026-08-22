@@ -21,6 +21,7 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 
 os.environ.setdefault("ENV", "test")
+os.environ.setdefault("AUTO_MIGRATE", "false")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-that-is-long-enough-for-hs256-signing")
 os.environ.setdefault("LOG_JSON", "false")
 os.environ.setdefault("LOG_LEVEL", "WARNING")

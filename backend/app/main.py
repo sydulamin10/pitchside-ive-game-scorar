@@ -30,6 +30,7 @@ from app.core.middleware import (
     RequestContextMiddleware,
     SecurityHeadersMiddleware,
 )
+from app.db.migrate import upgrade_to_head
 from app.db.redis import close_redis, init_redis
 from app.db.session import dispose_engine
 from app.realtime.broker import broker
@@ -86,6 +87,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         environment=settings.ENV,
         cache_configured=settings.REDIS_URL is not None,
     )
+    if settings.AUTO_MIGRATE and settings.is_production:
+        logger.info("applying_database_migrations")
+        await asyncio.to_thread(upgrade_to_head)
     await init_redis()
     await broker.start()
     try:

@@ -34,11 +34,15 @@ Templates: [`deploy/render/env.example`](../deploy/render/env.example), blueprin
 > **Docker Build Context Directory** = `backend`. Otherwise the build fails with  
 > `"/app": not found` / `requirements.txt: not found`.
 
-4. **Pre-Deploy Command** (migrations):
+4. **Pre-Deploy Command** (optional on paid plans):
 
 ```text
 alembic upgrade head
 ```
+
+On the **free** plan Render skips this command. The API image runs
+`alembic upgrade head` on boot (with retries while Neon wakes up), so a
+Manual Deploy is enough. Do not wait for a Shell session.
 
 5. Deploy.
 
@@ -132,7 +136,8 @@ Upload everything in `frontend/dist/` to `web.odcc.nextframesoft.com`. The built
 
 ## Notes
 
-- **Free tier** sleeps after idle; first request can take ~30–60s.
+- **Free tier** sleeps after idle; first request can take ~30–60s. Schema
+  migrations run on that same wake-up (Render does not run pre-deploy on free).
 - **Local media** on free Render is wiped on redeploy; use R2 later for permanent logos.
 - Live SSE works on Render; PHP proxy on cPanel is not used anymore.
 - **Phone WHIP / MediaMTX** is not provided by Render alone. Run MediaMTX on a VPS
