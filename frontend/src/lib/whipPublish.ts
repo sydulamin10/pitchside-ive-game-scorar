@@ -37,6 +37,18 @@ function normalizeWhipUrl(url: string): string {
   return trimmed.endsWith("/whip") ? trimmed : `${trimmed}/whip`;
 }
 
+/** Phones on the public site cannot reach MediaMTX on the scorer's localhost. */
+export function isUnreachableLoopbackWhip(whipUrl: string, pageHostname = window.location.hostname): boolean {
+  try {
+    const host = new URL(whipUrl).hostname;
+    const targetLoopback = host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
+    const pageLocal = pageHostname === "localhost" || pageHostname === "127.0.0.1" || pageHostname === "[::1]";
+    return targetLoopback && !pageLocal;
+  } catch {
+    return false;
+  }
+}
+
 function waitIceComplete(pc: RTCPeerConnection, timeoutMs = 8_000): Promise<void> {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((resolve) => {
@@ -172,6 +184,12 @@ export function createWhipPublisher(options: WhipPublisherOptions = {}): WhipPub
     if (!whipUrl) {
       setStatus("failed", "No WHIP publish URL. Configure MediaMTX.");
       throw new Error("No WHIP publish URL.");
+    }
+    if (isUnreachableLoopbackWhip(whipUrl)) {
+      const message =
+        "Camera server is localhost. Set MEDIAMTX_WHIP_BASE_URL to a public HTTPS MediaMTX host — Render cannot receive phone video.";
+      setStatus("failed", message);
+      throw new Error(message);
     }
 
     setStatus(isReconnect ? "reconnecting" : "connecting");

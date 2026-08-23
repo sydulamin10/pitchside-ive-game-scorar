@@ -318,6 +318,37 @@ async def test_creating_a_match_builds_both_squads_and_a_share_link(
     assert snapshot["innings"] == []
 
 
+async def test_tennis_ball_match_with_named_sides_only(api: AsyncClient, db: Any) -> None:
+    """Walk-up sides with no roster, the payload the ODCC create form sends."""
+    account = await register(api)
+    response = await api.post(
+        "/matches",
+        json={
+            "title": "Old Dhaka Champion League",
+            "venue": "Old Dhaka Cricket Stadium",
+            "match_format": "tennis_ball",
+            "rules": {
+                "overs_limit": 12,
+                "balls_per_over": 6,
+                "players_per_side": 11,
+                "max_overs_per_bowler": None,
+                "dls_enabled": True,
+            },
+            "team_a": {"name": "A", "short_name": "a"},
+            "team_b": {"name": "B", "short_name": "b"},
+            "tournament_id": None,
+        },
+        headers=account["headers"],
+    )
+    assert response.status_code == 201, response.text
+    snapshot = response.json()
+    assert snapshot["match"]["format"] == "tennis_ball"
+    assert snapshot["match"]["status"] == "setup"
+    assert snapshot["innings"] == []
+    assert snapshot["match"]["teams"]["a"]["name"] == "A"
+    assert snapshot["match"]["teams"]["b"]["name"] == "B"
+
+
 async def test_naming_no_squad_uses_the_saved_roster(api: AsyncClient, db: Any) -> None:
     """Picking saved teams and saying nothing about players means "the usual XI"."""
     account = await register(api)
@@ -477,6 +508,37 @@ async def test_an_over_of_singles_rotates_the_strike_correctly(api: AsyncClient,
     assert innings["striker_id"] == batters[1]
     assert innings["non_striker_id"] == batters[0]
     assert innings["next_action"] == "select_bowler"
+
+
+async def test_swap_ends_exchanges_striker_for_future_balls(api: AsyncClient, db: Any) -> None:
+    account = await register(api)
+    snapshot = await create_match(api, account["headers"])
+    match_id = snapshot["match"]["id"]
+    live = await start_toss_and_innings(api, account["headers"], snapshot)
+    striker, non_striker = ends(live)
+    bowler = squad_ids(snapshot, "b")[0]
+
+    after_dot = await record(
+        api,
+        account["headers"],
+        match_id,
+        {
+            "striker_id": striker,
+            "non_striker_id": non_striker,
+            "bowler_id": bowler,
+            "batter_runs": 0,
+        },
+    )
+    before = current_innings(after_dot)["state"]
+    swapped = await api.post(
+        f"/matches/{match_id}/crease/swap-ends",
+        json={},
+        headers=account["headers"],
+    )
+    assert swapped.status_code == 200, swapped.text
+    after = current_innings(swapped.json()["state"])["state"]
+    assert after["striker_id"] == before["non_striker_id"]
+    assert after["non_striker_id"] == before["striker_id"]
 
 
 async def test_a_wide_adds_a_run_without_a_ball(api: AsyncClient, db: Any) -> None:

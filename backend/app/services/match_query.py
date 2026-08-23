@@ -42,6 +42,10 @@ class InningsSnapshot:
     state: InningsState
     batting_team: Team
     bowling_team: Team
+
+    @property
+    def id(self) -> uuid.UUID:
+        return self.innings.id
     #: Kept alongside the state so the write path can validate a new ball without
     #: re-deriving the rule set (and risking a mismatch with the replay).
     rules: InningsRules

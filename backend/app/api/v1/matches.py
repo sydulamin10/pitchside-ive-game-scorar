@@ -279,8 +279,9 @@ async def list_deliveries(
     match_id: uuid.UUID,
     session: SessionDep,
     user: CurrentUser,
-    pagination: PaginationDep,
     innings_id: uuid.UUID | None = None,
+    limit: int = Query(default=200, ge=1, le=5000),
+    offset: int = Query(default=0, ge=0, le=100_000),
 ) -> dict[str, Any]:
     await authorise_match(session, match_id, user, write=False)
     innings_ids = select(Innings.id).where(Innings.match_id == match_id)
@@ -288,8 +289,8 @@ async def list_deliveries(
         select(Delivery)
         .where(Delivery.innings_id.in_(innings_ids))
         .order_by(Delivery.innings_id, Delivery.sequence)
-        .limit(pagination.limit)
-        .offset(pagination.offset)
+        .limit(limit)
+        .offset(offset)
     )
     if innings_id is not None:
         stmt = stmt.where(Delivery.innings_id == innings_id)
@@ -326,9 +327,9 @@ async def list_deliveries(
             for d in rows
         ],
         "total": total,
-        "limit": pagination.limit,
-        "offset": pagination.offset,
-        "has_more": pagination.offset + len(rows) < total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + len(rows) < total,
     }
 
 

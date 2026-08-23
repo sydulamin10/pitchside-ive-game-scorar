@@ -6,7 +6,7 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -249,7 +249,17 @@ def whip_publish_url(whip_path: str | None) -> str | None:
     # MediaMTX WHIP publish endpoint is ``{path}/whip``.
     if not path.endswith("/whip"):
         path = f"{path.rstrip('/')}/whip"
-    return urljoin(base, path)
+    url = urljoin(base, path)
+    # Render free has no MediaMTX. A localhost WHIP URL makes phones spin on
+    # ERR_CONNECTION_REFUSED ("reconnecting…") instead of a clear setup error.
+    if settings.is_production and _is_loopback_url(url):
+        return None
+    return url
+
+
+def _is_loopback_url(url: str) -> bool:
+    host = urlparse(url).hostname or ""
+    return host in {"localhost", "127.0.0.1", "::1"}
 
 
 def _default_rtmp_url(whip_path: str) -> str:
