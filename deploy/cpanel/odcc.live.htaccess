@@ -1,0 +1,77 @@
+# ---------------------------------------------------------------------------
+# odcc.live document root (cPanel) — ODCC LIVE web app.
+#
+# Shipped as `.htaccess` inside the deployment ZIP. Unlike web.htaccess there
+# is no /api → api-proxy.php rewrite: the browser talks to https://api.odcc.live
+# directly, which is required anyway because the live-score feed is SSE and PHP
+# cannot forward a streaming response.
+# ---------------------------------------------------------------------------
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Force HTTPS. The X-Forwarded-Proto test matters behind Cloudflare: without
+  # it, a proxy that reaches this host over plain HTTP would be redirected to
+  # HTTPS forever.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Existing files and directories are served as-is
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # SPA fallback — every other path is a client-side route
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Hashed Vite assets — immutable
+  <FilesMatch "^(?!sw\.js$|runtime-config\.js$).+\.(?:js|css|woff2?)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Service worker must never stick to an old deploy
+  <Files "sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
+
+  # API origin override — lets the API host change without a rebuild, so it
+  # must never be cached as an immutable hashed asset
+  <Files "runtime-config.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
+
+  <Files "index.html">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
+
+  <Files "manifest.webmanifest">
+    Header set Cache-Control "public, max-age=3600"
+  </Files>
+
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=()"
+  Header set Cross-Origin-Opener-Policy "same-origin"
+
+  # Default: no framing. The overlay path opts out below.
+  Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>
+
+# Broadcast overlays are embedded in OBS / Facebook / YouTube Browser Source.
+<IfModule mod_headers.c>
+  <If "%{REQUEST_URI} =~ m#^/s/[^/]+/overlay#">
+    Header unset X-Frame-Options
+    Header unset Cross-Origin-Opener-Policy
+  </If>
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>

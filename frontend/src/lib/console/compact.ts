@@ -51,8 +51,11 @@ export function compactFromSnapshot(
   const base: CompactState = {
     status: snapshot.match.status,
     state_version: snapshot.match.state_version,
+    match_id: snapshot.match.id,
     title: snapshot.match.title,
     result_summary: snapshot.result.summary,
+    tournament: snapshot.match.tournament,
+    toss: snapshot.match.toss,
   };
   if (!innings) return base;
 

@@ -113,6 +113,22 @@
   }
 }
 
+/* ------------------------------------------------------------------ swipe deck */
+
+/*
+ * A swipe deck states its position with a tab strip and dots, so the native
+ * scrollbar is redundant chrome across the middle of the panel. Scrolling
+ * itself is untouched — this hides the indicator only.
+ */
+.deck-track {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.deck-track::-webkit-scrollbar {
+  display: none;
+}
+
 /* ---------------------------------------------------------------- split-flap */
 
 /*
@@ -172,6 +188,26 @@
   }
   100% {
     transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  display: inline-block;
+  animation: ticker-scroll 22s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker {
+    animation: none;
   }
 }
 
@@ -286,4 +322,303 @@
   min-height: 3rem;
   touch-action: manipulation;
   user-select: none;
+}
+
+/* ------------------------------------------------ live event graphics */
+
+.gfx-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.gfx-wash {
+  position: absolute;
+  inset: 0;
+  animation: gfx-wash 2.8s ease-out both;
+}
+
+.gfx-wash--four,
+.gfx-wash--five,
+.gfx-wash--one,
+.gfx-wash--two,
+.gfx-wash--three {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-flip) 38%, transparent) 45%,
+    transparent 100%
+  );
+}
+
+.gfx-wash--six {
+  background: radial-gradient(
+    circle at 50% 42%,
+    color-mix(in srgb, var(--color-flip) 55%, transparent) 0%,
+    transparent 62%
+  );
+}
+
+.gfx-wash--wicket {
+  background: radial-gradient(
+    circle at 50% 40%,
+    color-mix(in srgb, var(--color-boundary) 50%, transparent) 0%,
+    transparent 68%
+  );
+}
+
+.gfx-wash--fifty,
+.gfx-wash--century,
+.gfx-wash--team_hundred,
+.gfx-wash--free_hit {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-flip) 28%, transparent),
+    transparent 70%
+  );
+}
+
+.gfx-wash--wide,
+.gfx-wash--no_ball {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-willow) 30%, transparent),
+    transparent
+  );
+}
+
+.gfx-ring {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  width: min(42vw, 16rem);
+  height: min(42vw, 16rem);
+  margin: 0;
+  border: 3px solid var(--color-flip);
+  border-radius: 999px;
+  transform: translate(-50%, -50%) scale(0.2);
+  animation: gfx-ring 1.6s ease-out both;
+}
+
+.gfx-ring--late {
+  animation-delay: 0.18s;
+  border-color: color-mix(in srgb, var(--color-chalk) 70%, var(--color-flip));
+}
+
+.gfx-plate {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  display: flex;
+  min-width: min(72vw, 22rem);
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.35rem 1.5rem 0.55rem;
+  color: var(--color-chalk);
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.gfx-plate--four,
+.gfx-plate--five,
+.gfx-plate--one,
+.gfx-plate--two,
+.gfx-plate--three {
+  text-shadow: 0 0 24px color-mix(in srgb, var(--color-flip) 70%, transparent);
+}
+
+.gfx-plate--six {
+  text-shadow: 0 0 32px color-mix(in srgb, var(--color-flip) 90%, transparent);
+}
+
+.gfx-plate--wicket {
+  color: var(--color-boundary);
+  text-shadow: 0 4px 0 #1a0505, 0 0 28px color-mix(in srgb, var(--color-boundary) 80%, transparent);
+}
+
+.gfx-plate--sweep {
+  animation: gfx-sweep-ltr 2.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.gfx-plate--boom {
+  animation: gfx-boom 3s cubic-bezier(0.12, 0.8, 0.24, 1) both;
+}
+
+.gfx-plate--stamp {
+  animation: gfx-stamp 2.8s cubic-bezier(0.18, 1.2, 0.32, 1) both;
+}
+
+.gfx-plate--ribbon {
+  animation: gfx-ribbon 2.4s ease-out both;
+}
+
+.gfx-digit {
+  font-family: var(--font-sans);
+  font-size: clamp(4.8rem, 18vw, 9rem);
+  font-weight: 900;
+  line-height: 0.85;
+  letter-spacing: -0.06em;
+}
+
+.gfx-digit--hover {
+  animation: gfx-hover 0.85s cubic-bezier(0.2, 1.4, 0.32, 1) both;
+}
+
+.gfx-word {
+  font-family: var(--font-sans);
+  font-size: clamp(1.35rem, 4.2vw, 2.4rem);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.gfx-sub {
+  margin-top: 0.2rem;
+  font-family: var(--font-sans);
+  font-size: clamp(0.7rem, 1.8vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+@keyframes gfx-wash {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes gfx-hover {
+  0% {
+    transform: scale(0.12) rotate(-16deg);
+    opacity: 0;
+    filter: blur(10px);
+  }
+  40% {
+    transform: scale(1.28) rotate(0deg);
+    opacity: 1;
+    filter: blur(0);
+  }
+  62% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes gfx-sweep-ltr {
+  0% {
+    transform: translate(-160%, -50%);
+    opacity: 0;
+  }
+  18% {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+  62% {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(120%, -50%);
+    opacity: 0;
+  }
+}
+
+@keyframes gfx-boom {
+  0% {
+    transform: translate(-50%, -50%) scale(0.15);
+    opacity: 0;
+  }
+  22% {
+    transform: translate(-50%, -50%) scale(1.22);
+    opacity: 1;
+  }
+  38% {
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  78% {
+    transform: translate(-50%, -50%) scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0;
+  }
+}
+
+@keyframes gfx-stamp {
+  0% {
+    transform: translate(-50%, -90%) scale(1.7) rotate(-10deg);
+    opacity: 0;
+  }
+  16% {
+    transform: translate(-50%, -50%) scale(0.94) rotate(-2deg);
+    opacity: 1;
+  }
+  26% {
+    transform: translate(-48%, -50%) scale(1.08) rotate(2deg);
+  }
+  38% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes gfx-ribbon {
+  0% {
+    transform: translate(-50%, -70%) scale(0.8);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -40%);
+    opacity: 0;
+  }
+}
+
+@keyframes gfx-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.15);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gfx-wash,
+  .gfx-ring,
+  .gfx-plate--sweep,
+  .gfx-plate--boom,
+  .gfx-plate--stamp,
+  .gfx-plate--ribbon,
+  .gfx-digit--hover {
+    animation: none;
+  }
 }

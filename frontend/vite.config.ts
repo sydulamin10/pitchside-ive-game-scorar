@@ -3,13 +3,18 @@ import { fileURLToPath, URL } from "node:url";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 
 /**
  * Dev server proxies `/api` to the backend (same-origin).
  * HTTPS is on so phones on the LAN can install the PWA home-screen icon.
  */
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  const apiTarget = env.VITE_DEV_API_TARGET || "http://127.0.0.1:8000";
+
+  return {
   plugins: [react(), tailwindcss(), basicSsl()],
   resolve: {
     alias: {
@@ -23,9 +28,11 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/api": {
-        target: process.env.VITE_DEV_API_TARGET ?? "http://127.0.0.1:8000",
+        target: apiTarget,
         changeOrigin: true,
-        secure: false,
+        secure: true,
+        timeout: 60_000,
+        proxyTimeout: 60_000,
         configure: (proxy) => {
           proxy.on("proxyRes", (proxyRes) => {
             if (proxyRes.headers["content-type"]?.includes("text/event-stream")) {
@@ -33,6 +40,13 @@ export default defineConfig({
             }
           });
         },
+      },
+      "/media": {
+        target: apiTarget,
+        changeOrigin: true,
+        secure: true,
+        timeout: 60_000,
+        proxyTimeout: 60_000,
       },
     },
   },
@@ -44,6 +58,9 @@ export default defineConfig({
   build: {
     target: "es2022",
     sourcemap: "hidden",
+    // Vite's default modulepreload of rolldown-runtime races the service
+    // worker and Chrome logs "preload not used" / cross-world mismatch.
+    modulePreload: false,
     rollupOptions: {
       output: {
         codeSplitting: {
@@ -68,4 +85,5 @@ export default defineConfig({
       include: ["src/lib/**"],
     },
   },
+  };
 });

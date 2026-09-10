@@ -1,5 +1,5 @@
 /**
- * Full-screen event + milestone graphics for overlay and camera studio.
+ * Full-screen event graphics for overlay, studio and external camera.
  * Driven by the latest ball in the compact SSE frame.
  */
 
@@ -7,74 +7,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { useLastEventKey } from "@/components/broadcast/useLastEventKey";
 import type { CompactState } from "@/lib/api/types";
+import {
+  GRAPHIC_DIGITS,
+  GRAPHIC_WORDS,
+  graphicHoldMs,
+  latestGraphic,
+  type GraphicKind,
+} from "@/lib/broadcast/eventKind";
 import { cn } from "@/lib/utils";
-
-type GraphicKind =
-  | "four"
-  | "six"
-  | "wicket"
-  | "wide"
-  | "no_ball"
-  | "free_hit"
-  | "fifty"
-  | "century"
-  | "team_hundred"
-  | null;
-
-function classifyBall(display: string | undefined, freeHit: boolean): GraphicKind {
-  if (freeHit) return "free_hit";
-  if (!display) return null;
-  const d = display.toLowerCase();
-  if (d.includes("w") && !d.includes("wd")) return "wicket";
-  if (d === "6" || /^6/.test(d) || d.includes("6")) return "six";
-  if (d === "4" || /^4/.test(d)) return "four";
-  if (d.includes("wd") || d.includes("wide")) return "wide";
-  if (d.includes("nb")) return "no_ball";
-  return null;
-}
-
-function detectMilestones(
-  state: CompactState,
-  prevRuns: number | null,
-): GraphicKind {
-  const score = state.score;
-  if (!score) return null;
-  if (prevRuns != null) {
-    if (prevRuns < 100 && score.runs >= 100) return "team_hundred";
-    if (prevRuns < 200 && score.runs >= 200) return "team_hundred";
-  }
-  const striker = state.striker;
-  if (striker) {
-    // Milestone on the strike batter when their score crosses thresholds.
-    if (striker.runs >= 100 && striker.runs - (striker.balls_faced > 0 ? 0 : 0) <= 106) {
-      // Soft signal: if last ball was boundary and runs in 100-106 range
-      const last = state.recent_balls?.[state.recent_balls.length - 1];
-      if (last && (last.display === "4" || last.display === "6" || last.batter_runs >= 4)) {
-        if (striker.runs >= 100 && striker.runs < 106) return "century";
-        if (striker.runs >= 50 && striker.runs < 56) return "fifty";
-      }
-    }
-    if (striker.runs >= 50 && striker.runs < 56) {
-      const last = state.recent_balls?.[state.recent_balls.length - 1];
-      if (last && (last.display === "4" || last.display === "6" || (last.batter_runs ?? 0) >= 1)) {
-        if (striker.runs < 100) return "fifty";
-      }
-    }
-  }
-  return null;
-}
-
-const LABELS: Record<Exclude<GraphicKind, null>, string> = {
-  four: "FOUR",
-  six: "SIX",
-  wicket: "OUT",
-  wide: "WIDE",
-  no_ball: "NO BALL",
-  free_hit: "FREE HIT",
-  fifty: "FIFTY",
-  century: "CENTURY",
-  team_hundred: "100 UP",
-};
 
 export function EventGraphics({ state }: { state: CompactState | null }) {
   const eventKey = useLastEventKey(state);
@@ -83,29 +23,23 @@ export function EventGraphics({ state }: { state: CompactState | null }) {
   const prevRuns = useRef<number | null>(null);
   const reduceMotion =
     typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   useEffect(() => {
     if (!eventKey || !state?.recent_balls?.length) return;
     const last = state.recent_balls[state.recent_balls.length - 1];
-    let next = classifyBall(last?.display, Boolean(state.score?.is_free_hit));
+    const next = latestGraphic(state, prevRuns.current);
     let sub: string | null = null;
 
-    if (!next || next === "wide" || next === "no_ball") {
-      const milestone = detectMilestones(state, prevRuns.current);
-      if (milestone) {
-        next = milestone;
-        if (state.striker && (milestone === "fifty" || milestone === "century")) {
-          sub = `${state.striker.name} · ${state.striker.runs}(${state.striker.balls_faced})`;
-          if (state.striker.sixes) sub += ` · ${state.striker.sixes} sixes`;
-        } else if (milestone === "team_hundred" && state.batting_team) {
-          sub = `${state.batting_team.short_name ?? state.batting_team.name} · ${state.score?.runs}/${state.score?.wickets}`;
-        }
-      }
-    } else if (next === "wicket" && state.striker) {
-      sub = state.striker.name;
+    if (next === "wicket" && (state.striker || last?.striker_name)) {
+      sub = last?.striker_name ?? state.striker?.name ?? null;
     } else if ((next === "four" || next === "six") && state.striker) {
       sub = `${state.striker.name} · ${state.striker.runs}(${state.striker.balls_faced})`;
+    } else if (next === "no_ball") {
+      sub = "No ball";
+    } else if (next === "wide") {
+      sub = "Wide";
     }
 
     if (state.score) prevRuns.current = state.score.runs;
@@ -115,11 +49,10 @@ export function EventGraphics({ state }: { state: CompactState | null }) {
       setKind(next);
       setSubtitle(sub);
     });
-    const ms = reduceMotion ? 900 : next === "wicket" || next === "six" ? 2800 : 2200;
     const timer = window.setTimeout(() => {
       setKind(null);
       setSubtitle(null);
-    }, ms);
+    }, graphicHoldMs(next, reduceMotion));
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(timer);
@@ -128,33 +61,46 @@ export function EventGraphics({ state }: { state: CompactState | null }) {
 
   if (!kind) return null;
 
-  // Safe zone: upper third / top-right so graphics do not cover bottom score bars.
+  const digit = GRAPHIC_DIGITS[kind];
+  const word = GRAPHIC_WORDS[kind];
+  const sweep = kind === "four";
+  const boom = kind === "six";
+  const stamp = kind === "wicket";
+  const ribbon = kind === "no_ball" || kind === "wide";
+
+  if (reduceMotion) {
+    return (
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-[38%] items-start justify-end p-3 sm:p-4"
+        aria-live="polite"
+      >
+        <div className="flex flex-col items-center gap-1 rounded-[4px] border-2 border-chalk bg-ink px-5 py-3 text-chalk">
+          <span className="font-sans text-3xl font-black tracking-[0.14em] uppercase">{word}</span>
+          {subtitle ? <span className="font-sans text-[11px] uppercase">{subtitle}</span> : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-[38%] items-start justify-end p-3 sm:p-4"
-      aria-live="polite"
-    >
+    <div className="gfx-stage" aria-live="polite">
+      <div className={cn("gfx-wash", `gfx-wash--${kind}`)} />
+      {boom ? <div className="gfx-ring" /> : null}
+      {boom ? <div className="gfx-ring gfx-ring--late" /> : null}
+
       <div
         className={cn(
-          "flex max-w-[min(92vw,20rem)] flex-col items-center gap-1 rounded-[4px] border-2 px-5 py-3 shadow-tile sm:px-7 sm:py-4",
-          "animate-[fadeIn_0.2s_ease-out]",
-          kind === "six" && "border-flip bg-ink text-flip",
-          kind === "four" && "border-chalk bg-pitch text-chalk",
-          kind === "wicket" && "border-boundary bg-ink text-boundary",
-          kind === "free_hit" && "border-flip bg-flip text-ink",
-          (kind === "fifty" || kind === "century" || kind === "team_hundred") &&
-            "border-flip bg-pitch-deep text-flip",
-          (kind === "wide" || kind === "no_ball") && "border-willow bg-ink text-willow",
+          "gfx-plate",
+          sweep && "gfx-plate--sweep",
+          boom && "gfx-plate--boom",
+          stamp && "gfx-plate--stamp",
+          ribbon && "gfx-plate--ribbon",
+          `gfx-plate--${kind}`,
         )}
       >
-        <span className="font-sans text-3xl font-black tracking-[0.14em] uppercase sm:text-4xl">
-          {LABELS[kind]}
-        </span>
-        {subtitle && (
-          <span className="font-sans text-[11px] tracking-wide text-chalk/90 uppercase sm:text-xs">
-            {subtitle}
-          </span>
-        )}
+        {digit ? <span className={cn("gfx-digit", sweep && "gfx-digit--hover")}>{digit}</span> : null}
+        <span className="gfx-word">{word}</span>
+        {subtitle ? <span className="gfx-sub">{subtitle}</span> : null}
       </div>
     </div>
   );

@@ -4,40 +4,49 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { EventGraphics } from "@/components/broadcast/EventGraphics";
 import {
-  LiveInfoOverlays,
   LiveInfoPanelToggles,
   useLiveInfoPanels,
 } from "@/components/broadcast/LiveInfoPanels";
 import {
   OVERLAY_DESIGNS,
+  parseOverlayDesign,
   type OverlayDesignId,
 } from "@/components/broadcast/overlayThemes";
+import { OverlayDirectorPanel } from "@/components/broadcast/OverlayDirectorPanel";
+import {
+  LiveBroadcastHud,
+  captureFrameSize,
+} from "@/components/broadcast/LiveBroadcastHud";
 import { QrCode } from "@/components/broadcast/QrCode";
+import {
+  SocialStreamConnect,
+  socialLabel,
+  socialRtmpUrl,
+  type SocialDestination,
+} from "@/components/broadcast/SocialStreamConnect";
+import { HistoryBackButton } from "@/components/layout/HistoryBackButton";
 import { Button } from "@/components/ui/Button";
 import { SelectField, TextField } from "@/components/ui/Field";
 import { Panel, Seam, SectionTitle, Spinner } from "@/components/ui/Surface";
 import { broadcast as broadcastApi, matches as matchesApi, publicApi } from "@/lib/api/endpoints";
+import type { CompactState, MatchSnapshot } from "@/lib/api/types";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
 import { copyToClipboard } from "@/lib/utils";
+import { startLivePublishStream, type OverlayCompositor } from "@/lib/broadcast/overlayCompositor";
 import { createWhipPublisher, type WhipStatus } from "@/lib/whipPublish";
 import {
   mockOverlayState,
   TvScoreOverlay,
 } from "@/components/broadcast/TvScoreBars";
-import { ScoreBar } from "@/routes/public/Overlay";
 import { toast, toastError } from "@/store/toast";
 
 type Phase = "idle" | "preview" | "live" | "connecting" | "error";
 type Tab = "camera" | "overlay" | "device";
 type Orientation = "landscape" | "portrait";
-
-const YOUTUBE_RTMP = "rtmps://a.rtmp.youtube.com/live2";
-const FACEBOOK_RTMP = "rtmps://live-api-s.facebook.com:443/rtmp/";
 
 function studioStorageKey(matchId: string) {
   return `odcc.studio.${matchId}`;
@@ -62,10 +71,15 @@ function loadStudioPrefs(matchId: string | undefined): StudioPrefs {
 
 export default function BroadcastStudio() {
   const { matchId } = useParams<{ matchId: string }>();
+  const [params, setParams] = useSearchParams();
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const whipRef = useRef(createWhipPublisher());
+  const compositeRef = useRef<OverlayCompositor | null>(null);
+  const overlayHudRef = useRef<HTMLDivElement>(null);
+  const overlayStateRef = useRef<CompactState | null>(null);
+  const snapshotRef = useRef<MatchSnapshot | null>(null);
   const savedPrefs = loadStudioPrefs(matchId);
 
   const [tab, setTab] = useState<Tab>(() => savedPrefs.tab ?? "camera");
@@ -81,7 +95,8 @@ export default function BroadcastStudio() {
   );
   const [zoom, setZoom] = useState(1);
   const [quality, setQuality] = useState("480");
-  const [platform, setPlatform] = useState<"youtube" | "facebook">("youtube");
+  const [destination, setDestination] = useState<SocialDestination>("facebook_page");
+  const [destinationName, setDestinationName] = useState("");
   const [streamKey, setStreamKey] = useState("");
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
@@ -103,6 +118,21 @@ export default function BroadcastStudio() {
     retry: 1,
   });
 
+  useEffect(() => {
+    const connected = params.get("fb");
+    const err = params.get("fb_error");
+    if (!connected && !err) return;
+    if (connected === "connected") {
+      toast("Facebook connected. Pick Timeline or a Page, then Go live.", "success");
+      void sessionQuery.refetch();
+    }
+    if (err) toast(err, "error");
+    const next = new URLSearchParams(params);
+    next.delete("fb");
+    next.delete("fb_error");
+    setParams(next, { replace: true });
+  }, [params, sessionQuery, setParams]);
+
   const slug = matchQuery.data?.match.slug;
   const scorecard = useQuery({
     queryKey: ["public-match", slug],
@@ -115,9 +145,22 @@ export default function BroadcastStudio() {
     pollMs: 2_000,
     onResync: () => void scorecard.refetch(),
   });
+  overlayStateRef.current = state ?? null;
+  snapshotRef.current = scorecard.data ?? null;
   const session = sessionQuery.data;
-  const effectiveDesign: OverlayDesignId =
-    orientation === "portrait" ? "minimal" : overlayDesign;
+
+  useEffect(() => {
+    if (!state?.graphics?.design) return;
+    setOverlayDesign(parseOverlayDesign(state.graphics.design));
+  }, [state?.graphics?.design]);
+
+  const pickDesign = (id: OverlayDesignId) => {
+    setOverlayDesign(id);
+    if (matchId) void matchesApi.patchOverlay(matchId, { design: id });
+  };
+
+  const liveDesign = parseOverlayDesign(state?.graphics?.design ?? overlayDesign);
+  const effectiveDesign = liveDesign;
   const previewState = state?.score ? state : mockOverlayState();
 
   const webOrigin = typeof window !== "undefined" ? window.location.origin : "";
@@ -125,11 +168,14 @@ export default function BroadcastStudio() {
     ? `${webOrigin}/s/${slug}/overlay?design=${effectiveDesign}&position=bottom`
     : null;
 
-  const cameraUrl =
+  const cameraBase =
     session?.camera_url ||
     (session?.camera_token && slug
       ? `${webOrigin}/s/${slug}/camera/${session.camera_token}`
       : null);
+  const cameraUrl = cameraBase
+    ? `${cameraBase}${cameraBase.includes("?") ? "&" : "?"}orient=${orientation}`
+    : null;
 
   useEffect(() => {
     return whipRef.current.onStatus((status, detail) => {
@@ -169,6 +215,8 @@ export default function BroadcastStudio() {
 
   const stopCamera = useCallback(async () => {
     await whipRef.current.stop();
+    compositeRef.current?.stop();
+    compositeRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
@@ -216,10 +264,9 @@ export default function BroadcastStudio() {
 
   const saveDestinations = useMutation({
     mutationFn: async () => {
-      const rtmp = platform === "youtube" ? YOUTUBE_RTMP : FACEBOOK_RTMP;
       const input = {
-        destination_label: platform === "youtube" ? "YouTube" : "Facebook",
-        rtmp_url: rtmp,
+        destination_label: socialLabel(destination, destinationName),
+        rtmp_url: socialRtmpUrl(destination),
         stream_key: streamKey || null,
       };
       if (session) return broadcastApi.updateDestinations(matchId!, input);
@@ -240,14 +287,30 @@ export default function BroadcastStudio() {
       const ensured = session ?? (await broadcastApi.ensure(matchId!));
       if (streamKey) {
         await broadcastApi.updateDestinations(matchId!, {
-          destination_label: platform === "youtube" ? "YouTube" : "Facebook",
-          rtmp_url: platform === "youtube" ? YOUTUBE_RTMP : FACEBOOK_RTMP,
+          destination_label: socialLabel(destination, destinationName),
+          rtmp_url: socialRtmpUrl(destination),
           stream_key: streamKey,
         });
       }
       const whipUrl = ensured.whip_publish_url;
       const stream = streamRef.current;
-      if (whipUrl && stream) {
+      const video = videoRef.current;
+      if (whipUrl && stream && video) {
+        compositeRef.current?.stop();
+        const composed = startLivePublishStream({
+          video,
+          cameraStream: stream,
+          overlayEl: () => overlayHudRef.current,
+          ...captureFrameSize(orientation !== "portrait"),
+          getFrame: () => ({
+            state: overlayStateRef.current,
+            snapshot: snapshotRef.current,
+            tickerFallback: matchQuery.data?.match.title,
+          }),
+        });
+        compositeRef.current = composed;
+        await whipRef.current.start(composed.stream, whipUrl);
+      } else if (whipUrl && stream) {
         await whipRef.current.start(stream, whipUrl);
       } else if (!whipUrl) {
         setError(
@@ -256,10 +319,17 @@ export default function BroadcastStudio() {
       }
       return broadcastApi.goLive(matchId!);
     },
-    onSuccess: () => {
+    onSuccess: (session) => {
       invalidate();
       setPhase("live");
-      toast("Live.", "success");
+      if (session.facebook_ingest) {
+        toast(
+          "ODCC is live. Stay on this screen ~10 seconds so the Facebook Page can go LIVE.",
+          "success",
+        );
+      } else {
+        toast("Live in ODCC.", "success");
+      }
     },
     onError: (err) => {
       setPhase("error");
@@ -292,15 +362,18 @@ export default function BroadcastStudio() {
   return (
     <div className="flex flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="flex items-start gap-2">
+          <HistoryBackButton className="mt-0.5" />
+          <div>
           <Link
             to={`/app/matches/${matchId}`}
             className="font-sans text-xs text-willow hover:text-chalk"
           >
-            ← Scoring console
+            Scoring console
           </Link>
           <h1 className="font-sans text-lg font-semibold text-chalk">Go Live</h1>
           <p className="font-sans text-xs text-willow">{matchQuery.data.match.title}</p>
+          </div>
         </div>
       </header>
 
@@ -332,9 +405,9 @@ export default function BroadcastStudio() {
           <SectionTitle>Phone camera link</SectionTitle>
           <Seam className="my-3" />
           <p className="mb-3 font-sans text-sm text-willow">
-            Preferred path: open this link on a phone (or scan the QR). The phone claims the
-            session, publishes video over WHIP to MediaMTX, and shows the live score overlay —
-            no third-party streaming app required.
+            Scan this QR on every phone you want on air. Each phone gets its own live camera —
+            as many as you like. On the phone, connect YouTube or a Facebook page, then Go live.
+            Turn the phone sideways for a full-screen scorecard.
           </p>
 
           {sessionQuery.isLoading && <Spinner label="Preparing camera session" />}
@@ -346,7 +419,7 @@ export default function BroadcastStudio() {
 
           {cameraUrl && (
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-              <QrCode value={cameraUrl} size={180} label="Camera QR code" />
+              <QrCode value={cameraUrl} size={240} label="Camera QR code" />
               <div className="min-w-0 flex-1">
                 <TextField label="Camera link" value={cameraUrl} readOnly />
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -375,9 +448,10 @@ export default function BroadcastStudio() {
                   </Button>
                 </div>
                 <ol className="mt-4 list-decimal space-y-2 pl-4 font-sans text-xs text-willow">
-                  <li>Scan QR or open the link on the cameraman’s phone.</li>
-                  <li>Allow camera + mic, then tap Go live on the phone.</li>
-                  <li>Keep the page open while filming; score updates over SSE.</li>
+                  <li>Scan the QR on as many phones as you want — they do not kick each other off.</li>
+                  <li>Allow camera + mic. Optional: login to YouTube Studio or Facebook Live Producer and paste the stream key.</li>
+                  <li>Tap Go live. Hold landscape for a full-screen camera and scorecard.</li>
+                  <li>From scoring, push scorecard, batting, over analysis or a scrolling notice onto every camera.</li>
                 </ol>
                 {!session?.whip_publish_url && (
                   <p className="mt-3 rounded-[3px] border border-boundary/30 px-2 py-2 font-sans text-[11px] text-boundary">
@@ -391,6 +465,37 @@ export default function BroadcastStudio() {
                 </p>
               </div>
             </div>
+          )}
+
+          {matchId && (
+            <>
+              <Seam className="my-4" />
+              <OverlayDirectorPanel matchId={matchId} graphics={state?.graphics} />
+              <Seam className="my-4" />
+              <SocialStreamConnect
+                destination={destination}
+                streamKey={streamKey}
+                destinationName={destinationName}
+                onDestination={setDestination}
+                onStreamKey={setStreamKey}
+                onDestinationName={setDestinationName}
+                facebook={sessionQuery.data?.facebook}
+                matchId={matchId}
+                onFacebookChange={() => void sessionQuery.refetch()}
+              />
+              {(destination === "youtube" || !sessionQuery.data?.facebook?.connected) && (
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => saveDestinations.mutate()}
+                    loading={saveDestinations.isPending}
+                  >
+                    Save RTMP destination
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </Panel>
       )}
@@ -415,7 +520,7 @@ export default function BroadcastStudio() {
                   <button
                     key={design.id}
                     type="button"
-                    onClick={() => setOverlayDesign(design.id)}
+                    onClick={() => pickDesign(design.id)}
                     className={
                       selected
                         ? "rounded-[3px] border-2 border-boundary bg-boundary/10 px-2 py-2 text-left"
@@ -546,35 +651,14 @@ export default function BroadcastStudio() {
                   Live{whipStatus === "connected" ? "" : "…"}
                 </span>
               )}
-              {state?.tournament?.name && (
-                <div className="pointer-events-none absolute top-3 right-3 z-20 flex max-w-[45%] items-center gap-1.5 rounded-[3px] border border-white/20 bg-ink/70 px-1.5 py-1 text-chalk">
-                  {state.tournament.logo_url ? (
-                    <img
-                      src={state.tournament.logo_url}
-                      alt=""
-                      className="h-6 w-6 rounded-[2px] object-cover"
-                    />
-                  ) : null}
-                  <span className="truncate font-sans text-[9px] font-bold uppercase">
-                    {state.tournament.name}
-                  </span>
-                </div>
-              )}
-              <LiveInfoOverlays
-                active={infoPanels}
-                state={state}
-                snapshot={scorecard.data ?? null}
-              />
-              <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center px-2">
-                {state?.score ? (
-                  <ScoreBar
-                    state={state}
-                    design={effectiveDesign}
-                    className="max-w-full"
-                  />
-                ) : null}
+              <div ref={overlayHudRef} className="pointer-events-none absolute inset-0 z-10">
+                <LiveBroadcastHud
+                  state={state}
+                  snapshot={scorecard.data ?? null}
+                  design={effectiveDesign}
+                  tickerFallback={matchQuery.data.match.title}
+                />
               </div>
-              <EventGraphics state={state} />
             </div>
 
             <Panel>
@@ -646,7 +730,7 @@ export default function BroadcastStudio() {
                           key={design.id}
                           type="button"
                           disabled={orientation === "portrait" && design.id !== "minimal"}
-                          onClick={() => setOverlayDesign(design.id)}
+                          onClick={() => pickDesign(design.id)}
                           className={
                             selected
                               ? "rounded-[3px] border-2 border-boundary bg-boundary/10 px-2 py-2 text-left"
@@ -698,20 +782,21 @@ export default function BroadcastStudio() {
                   <option value="1080">1080p</option>
                 </SelectField>
 
-                <SelectField
-                  label="Optional RTMP destination"
-                  value={platform}
-                  onChange={(e) => setPlatform(e.target.value as "youtube" | "facebook")}
-                >
-                  <option value="youtube">YouTube</option>
-                  <option value="facebook">Facebook</option>
-                </SelectField>
-                <TextField
-                  label={platform === "youtube" ? "YouTube stream key" : "Facebook stream key"}
-                  value={streamKey}
-                  onChange={(e) => setStreamKey(e.target.value)}
-                  placeholder="Optional — for RTMP relay setups"
+                <SocialStreamConnect
+                  destination={destination}
+                  streamKey={streamKey}
+                  destinationName={destinationName}
+                  onDestination={setDestination}
+                  onStreamKey={setStreamKey}
+                  onDestinationName={setDestinationName}
+                  facebook={sessionQuery.data?.facebook}
+                  matchId={matchId}
+                  onFacebookChange={() => void sessionQuery.refetch()}
                 />
+
+                {matchId && (
+                  <OverlayDirectorPanel matchId={matchId} graphics={state?.graphics} />
+                )}
 
                 <div className="flex flex-wrap gap-2 pt-1">
                   {phase === "idle" || phase === "error" ? (
@@ -726,11 +811,24 @@ export default function BroadcastStudio() {
                         setFacing(nextFacing);
                         void (async () => {
                           await startCamera({ facingMode: nextFacing });
-                          if (wasLive && session?.whip_publish_url && streamRef.current) {
+                          if (wasLive && session?.whip_publish_url && streamRef.current && videoRef.current) {
                             try {
                               setPhase("connecting");
+                              compositeRef.current?.stop();
+                              const composed = startLivePublishStream({
+                                video: videoRef.current,
+                                cameraStream: streamRef.current,
+                                overlayEl: () => overlayHudRef.current,
+                                ...captureFrameSize(orientation !== "portrait"),
+                                getFrame: () => ({
+                                  state: overlayStateRef.current,
+                                  snapshot: snapshotRef.current,
+                                  tickerFallback: matchQuery.data?.match.title,
+                                }),
+                              });
+                              compositeRef.current = composed;
                               await whipRef.current.restart(
-                                streamRef.current,
+                                composed.stream,
                                 session.whip_publish_url,
                               );
                               setPhase("live");
@@ -747,13 +845,15 @@ export default function BroadcastStudio() {
                   )}
                   {phase === "preview" && (
                     <>
-                      <Button
-                        variant="secondary"
-                        onClick={() => saveDestinations.mutate()}
-                        loading={saveDestinations.isPending}
-                      >
-                        Save destination
-                      </Button>
+                      {(destination === "youtube" || !sessionQuery.data?.facebook?.connected) && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => saveDestinations.mutate()}
+                          loading={saveDestinations.isPending}
+                        >
+                          Save destination
+                        </Button>
+                      )}
                       <Button onClick={() => goLive.mutate()} loading={goLive.isPending}>
                         Go live
                       </Button>

@@ -33,6 +33,7 @@ from app.models.tournament import Tournament
 from app.models.user import User
 from app.realtime.broker import broker, channel_for_match
 from app.realtime.events import EventType, envelope
+from app.scoring.match_state import compute_target
 from app.schemas.match import (
     InningsCreate,
     MatchCreate,
@@ -455,6 +456,10 @@ async def start_innings(
         raise RuleViolation("The batting side must be one of the two teams.", code="invalid_team")
     bowling_team_id = match.team_b_id if batting_team_id == match.team_a_id else match.team_a_id
 
+    target_runs = payload.target_runs
+    if target_runs is None and not payload.is_super_over:
+        target_runs = _chase_target(match, sequence)
+
     innings = Innings(
         match_id=match.id,
         sequence=sequence,
@@ -462,7 +467,7 @@ async def start_innings(
         bowling_team_id=bowling_team_id,
         status=InningsStatus.IN_PROGRESS,
         overs_limit=payload.overs_limit,
-        target_runs=payload.target_runs,
+        target_runs=target_runs,
         is_super_over=payload.is_super_over,
         is_follow_on=payload.is_follow_on,
         started_at=datetime.now(UTC),
@@ -488,6 +493,16 @@ async def start_innings(
         request=request,
     )
     return innings
+
+
+def _chase_target(match: Match, sequence: int) -> int | None:
+    """Persist the win target on every limited-overs innings after the first."""
+    if sequence <= 1 or match.match_format is MatchFormat.TEST:
+        return None
+    previous = next((i for i in match.innings if i.sequence == sequence - 1), None)
+    if previous is None or previous.summary is None:
+        return None
+    return compute_target(int(previous.summary.total_runs))
 
 
 def _default_batting_team(match: Match, sequence: int) -> uuid.UUID:

@@ -91,6 +91,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("applying_database_migrations")
         await asyncio.to_thread(upgrade_to_head)
     await init_redis()
+    try:
+        from app.db.session import SessionFactory
+        from app.services import app_settings
+
+        async with SessionFactory() as session:
+            await app_settings.hydrate_facebook_runtime(session)
+    except Exception:
+        logger.warning("facebook_credentials_hydrate_skipped", exc_info=True)
     await broker.start()
     try:
         yield

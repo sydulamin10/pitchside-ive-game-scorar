@@ -62,3 +62,12 @@ def test_expired_token_is_rejected(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     with pytest.raises(Exception) as exc:
         media_service.parse_local_token(token)
     assert "expired" in str(exc.value).lower() or getattr(exc.value, "code", "") == "media_token_expired"
+
+
+def test_object_key_from_public_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "PUBLIC_API_URL", "https://api.odcc.live")
+    key = "generic/u/logo.png"
+    assert media_service.object_key_from_public_url(f"https://api.odcc.live/media/{key}") == key
+    assert media_service.object_key_from_public_url(f"/media/{key}") == key
+    assert media_service.object_key_from_public_url("https://evil.example/media/x.png") is None
+    assert media_service.object_key_from_public_url("https://api.odcc.live/media/../secret") is None

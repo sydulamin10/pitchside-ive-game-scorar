@@ -1,28 +1,44 @@
 /**
  * Public external-camera page: claim → getUserMedia → WHIP publish → go-live.
  * Always shows a status panel (never a blank white screen).
+ *
+ * Layout comes from how the page is actually held: one hand, outdoors, at a
+ * ground. The frame gets the screen; everything that is not the frame or the
+ * one action that matters right now lives in a drawer off the left edge, and
+ * the scorecard rides over the video as a deck the operator can swipe.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { EventGraphics } from "@/components/broadcast/EventGraphics";
+import { OverlayDirectorPanel } from "@/components/broadcast/OverlayDirectorPanel";
 import {
-  LiveInfoOverlays,
-  LiveInfoPanelToggles,
-  useLiveInfoPanels,
-} from "@/components/broadcast/LiveInfoPanels";
+  LiveBroadcastHud,
+  captureFrameSize,
+} from "@/components/broadcast/LiveBroadcastHud";
+import {
+  SocialStreamConnect,
+  socialLabel,
+  socialRtmpUrl,
+  type SocialDestination,
+} from "@/components/broadcast/SocialStreamConnect";
+import { HistoryBackButton } from "@/components/layout/HistoryBackButton";
+import { loadRememberedSocial, rememberSocial } from "@/lib/broadcast/socialRemember";
 import {
   OVERLAY_DESIGNS,
+  parseOverlayDesign,
   type OverlayDesignId,
 } from "@/components/broadcast/overlayThemes";
 import { Button } from "@/components/ui/Button";
-import { EmptyState, Spinner } from "@/components/ui/Surface";
+import { Drawer, DrawerHandle } from "@/components/ui/Drawer";
+import { EmptyState, LiveDot, SectionTitle, Seam, Spinner } from "@/components/ui/Surface";
 import { publicApi } from "@/lib/api/endpoints";
+import type { CompactState, MatchSnapshot } from "@/lib/api/types";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
+import { startLivePublishStream, type OverlayCompositor } from "@/lib/broadcast/overlayCompositor";
+import { cn } from "@/lib/utils";
 import { createWhipPublisher, type WhipStatus } from "@/lib/whipPublish";
-import { ScoreBar } from "@/routes/public/Overlay";
 import { toast, toastError } from "@/store/toast";
 
 type UiPhase =
@@ -38,6 +54,34 @@ const DESIGN_KEY_PREFIX = "odcc.camera.overlayDesign.";
 
 function designStorageKey(slug: string | undefined) {
   return `${DESIGN_KEY_PREFIX}${slug || "default"}`;
+}
+
+function cameraDeviceId(slug: string, token: string): string {
+  const key = `odcc.cam.device.${slug}.${token}`;
+  try {
+    let id = localStorage.getItem(key);
+    if (!id) {
+      id = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+      localStorage.setItem(key, id);
+    }
+    return id;
+  } catch {
+    return crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+  }
+}
+
+function useDeviceLandscape(): boolean {
+  const [yes, setYes] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(orientation: landscape)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: landscape)");
+    const on = () => setYes(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return yes;
 }
 
 function classifyMediaError(err: unknown): UiPhase {
@@ -67,19 +111,53 @@ function statusLabel(phase: UiPhase, whipStatus: WhipStatus, detail: string | nu
   return "Ready";
 }
 
+/** live = publishing, warn = needs the operator, idle = nothing wrong. */
+type Tone = "live" | "warn" | "idle";
+
+function statusTone(phase: UiPhase, whipStatus: WhipStatus): Tone {
+  if (phase === "live" && whipStatus === "connected") return "live";
+  if (
+    phase === "connection_lost" ||
+    phase === "permission_required" ||
+    phase === "camera_unavailable" ||
+    whipStatus === "failed" ||
+    whipStatus === "reconnecting"
+  ) {
+    return "warn";
+  }
+  return "idle";
+}
+
 export default function ExternalCamera() {
   const { slug, token } = useParams<{ slug: string; token: string }>();
+  const [params, setParams] = useSearchParams();
+  const preferLandscape = params.get("orient") !== "portrait";
+  const landscape = useDeviceLandscape();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const whipRef = useRef(createWhipPublisher());
+  const whipUrlRef = useRef<string | null>(null);
+  const whipPathRef = useRef<string | null>(null);
+  const compositeRef = useRef<OverlayCompositor | null>(null);
+  const overlayHudRef = useRef<HTMLDivElement>(null);
+  const overlayStateRef = useRef<CompactState | null>(null);
+  const snapshotRef = useRef<MatchSnapshot | null>(null);
   const [phase, setPhase] = useState<UiPhase>("idle");
   const [hasStream, setHasStream] = useState(false);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [error, setError] = useState<string | null>(null);
   const [whipStatus, setWhipStatus] = useState<WhipStatus>("idle");
   const [whipDetail, setWhipDetail] = useState<string | null>(null);
-  const { active: infoPanels, onToggle: toggleInfo } = useLiveInfoPanels();
   const [overlayDesign, setOverlayDesign] = useState<OverlayDesignId>("circle");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [deckOpen, setDeckOpen] = useState(false);
+  const [destination, setDestination] = useState<SocialDestination>(
+    () => loadRememberedSocial()?.destination ?? "facebook_page",
+  );
+  const [destinationName, setDestinationName] = useState(
+    () => loadRememberedSocial()?.destinationName ?? "",
+  );
+  const [streamKey, setStreamKey] = useState(() => loadRememberedSocial()?.streamKey ?? "");
 
   useEffect(() => {
     try {
@@ -98,6 +176,21 @@ export default function ExternalCamera() {
       /* ignore */
     }
   }, [overlayDesign, slug]);
+
+  useEffect(() => {
+    rememberSocial({ destination, destinationName, streamKey });
+  }, [destination, destinationName, streamKey]);
+
+  useEffect(() => {
+    if (!preferLandscape) return;
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock?: (mode: string) => Promise<void>;
+    };
+    void orientation.lock?.("landscape").catch(() => undefined);
+    return () => {
+      orientation.unlock?.();
+    };
+  }, [preferLandscape]);
 
   useEffect(() => {
     return whipRef.current.onStatus((status, detail) => {
@@ -120,6 +213,21 @@ export default function ExternalCamera() {
     refetchInterval: 8_000,
   });
 
+  useEffect(() => {
+    const connected = params.get("fb");
+    const err = params.get("fb_error");
+    if (!connected && !err) return;
+    if (connected === "connected") {
+      toast("Facebook connected. Pick Timeline or a Page, then Go live.", "success");
+      void invite.refetch();
+    }
+    if (err) toast(err, "error");
+    const next = new URLSearchParams(params);
+    next.delete("fb");
+    next.delete("fb_error");
+    setParams(next, { replace: true });
+  }, [invite, params, setParams]);
+
   const scorecard = useQuery({
     queryKey: ["public-match", slug],
     queryFn: () => publicApi.match(slug!),
@@ -131,6 +239,31 @@ export default function ExternalCamera() {
     pollMs: 2_000,
     onResync: () => void scorecard.refetch(),
   });
+  overlayStateRef.current = state ?? null;
+  snapshotRef.current = scorecard.data ?? null;
+
+  useEffect(() => {
+    if (!state?.graphics?.design) return;
+    setOverlayDesign(parseOverlayDesign(state.graphics.design));
+  }, [state?.graphics?.design]);
+
+  const directorPanel = state?.graphics?.panel ?? "hidden";
+  const directorDeck =
+    directorPanel === "scorecard" ||
+    directorPanel === "innings1" ||
+    directorPanel === "innings2" ||
+    directorPanel === "squad" ||
+    directorPanel === "over" ||
+    directorPanel === "sponsor";
+
+  useEffect(() => {
+    if (directorPanel === "hidden") {
+      setDeckOpen(false);
+      return;
+    }
+    if (directorDeck) setDeckOpen(true);
+    else if (directorPanel === "live") setDeckOpen(false);
+  }, [directorPanel, directorDeck]);
 
   useEffect(() => {
     const liveVersion = state?.state_version ?? 0;
@@ -140,6 +273,8 @@ export default function ExternalCamera() {
 
   const stopCamera = useCallback(async () => {
     await whipRef.current.stop();
+    compositeRef.current?.stop();
+    compositeRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setHasStream(false);
@@ -169,7 +304,12 @@ export default function ExternalCamera() {
     setPhase("connecting");
     await stopCamera();
     try {
-      if (slug && token) await publicApi.cameraClaim(slug, token);
+      if (slug && token) {
+        await publicApi.cameraClaim(slug, token);
+        const joined = await publicApi.cameraJoin(slug, token, cameraDeviceId(slug, token));
+        whipUrlRef.current = joined.whip_publish_url;
+        whipPathRef.current = joined.whip_path;
+      }
       await openMedia();
       setPhase("preview");
       toast("Camera ready. Tap Go live to publish.", "success");
@@ -191,7 +331,12 @@ export default function ExternalCamera() {
         stream = await openMedia();
       }
 
-      const whipUrl = invite.data?.whip_publish_url;
+      if (slug && token) {
+        const joined = await publicApi.cameraJoin(slug, token, cameraDeviceId(slug, token));
+        whipUrlRef.current = joined.whip_publish_url ?? whipUrlRef.current;
+        whipPathRef.current = joined.whip_path ?? whipPathRef.current;
+      }
+      const whipUrl = whipUrlRef.current ?? invite.data?.whip_publish_url;
       if (!whipUrl) {
         setPhase("connection_lost");
         setError(
@@ -201,10 +346,43 @@ export default function ExternalCamera() {
         return;
       }
 
-      await whipRef.current.start(stream, whipUrl);
-      await publicApi.cameraGoLive(slug!, token!);
+      const video = videoRef.current;
+      if (video) {
+        compositeRef.current?.stop();
+        const composed = startLivePublishStream({
+          video,
+          cameraStream: stream,
+          overlayEl: () => overlayHudRef.current,
+          ...captureFrameSize(landscape),
+          getFrame: () => ({
+            state: overlayStateRef.current,
+            snapshot: snapshotRef.current,
+            tickerFallback: invite.data?.title,
+          }),
+        });
+        compositeRef.current = composed;
+        await whipRef.current.start(composed.stream, whipUrl);
+      } else {
+        await whipRef.current.start(stream, whipUrl);
+      }
+      const live = await publicApi.cameraGoLive(slug!, token!, {
+        device_id: slug && token ? cameraDeviceId(slug, token) : undefined,
+        whip_path: whipPathRef.current ?? undefined,
+      });
       setPhase("live");
-      toast("You are live.", "success");
+      if (live.facebook_ingest) {
+        toast(
+          "ODCC is live. Stay on this screen ~10 seconds — the Facebook Page goes LIVE after video reaches Facebook, then we publish the post.",
+          "success",
+        );
+      } else if (invite.data?.facebook?.connected) {
+        toast(
+          "ODCC is live, but Facebook is not ingesting. Pick the Page again, then End live and Go live.",
+          "warning",
+        );
+      } else {
+        toast("You are live in ODCC.", "success");
+      }
       void invite.refetch();
     } catch (err) {
       if (err instanceof DOMException || (err instanceof Error && /permission|denied|NotAllowed|NotFound|NotReadable/i.test(err.message))) {
@@ -219,7 +397,7 @@ export default function ExternalCamera() {
       setError(err instanceof Error ? err.message : "Could not go live.");
       toastError(err, "Could not go live.");
     }
-  }, [invite, openMedia, slug, token]);
+  }, [invite, openMedia, slug, token, landscape]);
 
   const flipCamera = useCallback(async () => {
     const nextFacing = facing === "user" ? "environment" : "user";
@@ -243,8 +421,25 @@ export default function ExternalCamera() {
         videoRef.current.srcObject = stream;
         await videoRef.current.play().catch(() => undefined);
       }
-      if (wasLive && invite.data?.whip_publish_url) {
-        await whipRef.current.restart(stream, invite.data.whip_publish_url);
+      const whipUrl = whipUrlRef.current ?? invite.data?.whip_publish_url;
+      if (wasLive && whipUrl && videoRef.current) {
+        compositeRef.current?.stop();
+        const composed = startLivePublishStream({
+          video: videoRef.current,
+          cameraStream: stream,
+          overlayEl: () => overlayHudRef.current,
+          ...captureFrameSize(landscape),
+          getFrame: () => ({
+            state: overlayStateRef.current,
+            snapshot: snapshotRef.current,
+            tickerFallback: invite.data?.title,
+          }),
+        });
+        compositeRef.current = composed;
+        await whipRef.current.restart(composed.stream, whipUrl);
+        setPhase("live");
+      } else if (wasLive && whipUrl) {
+        await whipRef.current.restart(stream, whipUrl);
         setPhase("live");
       } else {
         setPhase("preview");
@@ -254,7 +449,7 @@ export default function ExternalCamera() {
       setPhase(next);
       setError(err instanceof Error ? err.message : "Camera denied.");
     }
-  }, [facing, invite.data?.whip_publish_url, phase]);
+  }, [facing, invite.data?.whip_publish_url, phase, landscape]);
 
   const retry = useCallback(() => {
     void publishAndGoLive();
@@ -267,14 +462,30 @@ export default function ExternalCamera() {
   const endLive = useMutation({
     mutationFn: async () => {
       await whipRef.current.stop();
-      return publicApi.cameraEnd(slug!, token!);
+      compositeRef.current?.stop();
+      compositeRef.current = null;
+      return publicApi.cameraEnd(slug!, token!, {
+        device_id: slug && token ? cameraDeviceId(slug, token) : undefined,
+        whip_path: whipPathRef.current ?? undefined,
+      });
     },
     onSuccess: () => {
       setPhase(hasStream ? "preview" : "idle");
-      toast("Live ended.", "info");
+      toast("Live ended on this phone. Other cameras stay on.", "info");
       void invite.refetch();
     },
     onError: (err) => toastError(err, "Could not end live."),
+  });
+
+  const saveDest = useMutation({
+    mutationFn: () =>
+      publicApi.cameraDestinations(slug!, token!, {
+        destination_label: socialLabel(destination, destinationName),
+        rtmp_url: socialRtmpUrl(destination),
+        stream_key: streamKey || undefined,
+      }),
+    onSuccess: () => toast("YouTube / Facebook key saved.", "success"),
+    onError: (err) => toastError(err, "Could not save the stream key."),
   });
 
   if (invite.isLoading) {
@@ -298,38 +509,74 @@ export default function ExternalCamera() {
   }
 
   const banner = statusLabel(phase, whipStatus, whipDetail ?? error);
+  const tone = statusTone(phase, whipStatus);
   const showRetry =
     phase === "connection_lost" ||
     phase === "permission_required" ||
     phase === "camera_unavailable" ||
     whipStatus === "failed";
+  const isLive = phase === "live" && whipStatus === "connected";
+  const canFlip = phase === "preview" || phase === "live" || phase === "connection_lost";
+  const whipReady = Boolean(whipUrlRef.current || invite.data.whip_publish_url);
 
-  return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-3 bg-ink px-3 py-4">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="font-sans text-[10px] tracking-wide text-willow uppercase">
-            External camera
-          </p>
-          <h1 className="font-sans text-base font-semibold text-chalk">{invite.data.title}</h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
+  /**
+   * The single most useful button right now, kept on the main screen. A lost
+   * connection resolves to Retry rather than End live — the drawer still
+   * offers both, so nothing is unreachable.
+   */
+  const primaryAction =
+    phase === "idle" ? (
+      <Button fullWidth onClick={() => void startCamera()}>
+        Start camera
+      </Button>
+    ) : phase === "preview" ? (
+      <Button fullWidth onClick={() => void publishAndGoLive()}>
+        Go live
+      </Button>
+    ) : showRetry ? (
+      <Button fullWidth onClick={retry}>
+        Retry
+      </Button>
+    ) : phase === "live" ? (
+      <Button
+        fullWidth
+        variant="danger"
+        onClick={() => endLive.mutate()}
+        loading={endLive.isPending}
+      >
+        End live
+      </Button>
+    ) : null;
+
+  const controls = (
+    <div className="flex flex-col gap-4">
+      <div>
+        <SectionTitle>Camera</SectionTitle>
+        <div className="grid gap-2 pt-2">
           {phase === "idle" && (
-            <Button onClick={() => void startCamera()}>Start camera</Button>
-          )}
-          {(phase === "preview" || phase === "live" || phase === "connection_lost") && (
-            <Button variant="secondary" size="sm" onClick={() => void flipCamera()}>
-              {facing === "environment" ? "Front" : "Back"}
+            <Button size="sm" fullWidth onClick={() => void startCamera()}>
+              Start camera
             </Button>
           )}
           {phase === "preview" && (
-            <Button size="sm" onClick={() => void publishAndGoLive()}>
+            <Button size="sm" fullWidth onClick={() => void publishAndGoLive()}>
               Go live
+            </Button>
+          )}
+          {canFlip && (
+            <Button size="sm" fullWidth variant="ghost" onClick={() => void flipCamera()}>
+              Switch to {facing === "environment" ? "front" : "back"} camera
+            </Button>
+          )}
+          {showRetry && (
+            <Button size="sm" fullWidth onClick={retry}>
+              Retry
             </Button>
           )}
           {(phase === "live" || (phase === "connection_lost" && hasStream)) && (
             <Button
               size="sm"
+              fullWidth
               variant="danger"
               onClick={() => endLive.mutate()}
               loading={endLive.isPending}
@@ -337,127 +584,289 @@ export default function ExternalCamera() {
               End live
             </Button>
           )}
-          {showRetry && (
-            <Button size="sm" onClick={retry}>
-              Retry
-            </Button>
-          )}
         </div>
-      </header>
-
-      <div
-        className={
-          phase === "live" && whipStatus === "connected"
-            ? "rounded-[3px] border border-boundary/50 bg-boundary/20 px-3 py-2 font-sans text-sm text-chalk"
-            : phase === "connection_lost" || phase === "permission_required" || phase === "camera_unavailable"
-              ? "rounded-[3px] border border-boundary/40 bg-boundary/10 px-3 py-2 font-sans text-sm text-boundary"
-              : "rounded-[3px] border border-willow/30 bg-pitch/40 px-3 py-2 font-sans text-sm text-willow"
-        }
-        role="status"
-      >
-        <span className="font-semibold text-chalk">{banner}</span>
-        {error && phase !== "live" && (
-          <span className="mt-1 block text-xs text-willow">{error}</span>
-        )}
-        {!invite.data.whip_publish_url && (
-          <span className="mt-1 block text-xs text-willow">
-            WHIP URL missing — host must set public HTTPS MEDIAMTX_WHIP_BASE_URL.
-          </span>
-        )}
       </div>
 
-      <div className="relative aspect-[9/16] max-h-[70dvh] overflow-hidden rounded-[4px] border border-willow/30 bg-black sm:aspect-video sm:max-h-none">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          className="h-full w-full object-cover"
-        />
-        {(phase === "idle" ||
-          phase === "permission_required" ||
-          phase === "camera_unavailable" ||
-          phase === "connecting") &&
-          !hasStream && (
-            <div className="absolute inset-0 grid place-items-center bg-ink/90 px-4 text-center">
-              <div>
-                <p className="font-sans text-sm font-semibold text-chalk">{banner}</p>
-                <p className="mt-1 font-sans text-xs text-willow">
-                  {phase === "permission_required"
-                    ? "Allow camera and microphone, then tap Retry."
-                    : phase === "camera_unavailable"
-                      ? "Check another app is not using the camera, then Retry."
-                      : phase === "connecting"
-                        ? "Starting camera and stream…"
-                        : "Tap Start camera to begin."}
-                </p>
-              </div>
-            </div>
-          )}
-        {phase === "live" && whipStatus === "connected" && (
-          <span className="absolute top-3 left-3 z-20 rounded-[2px] bg-boundary px-2 py-0.5 font-sans text-[10px] font-bold text-chalk uppercase">
-            Live
-          </span>
-        )}
-        {phase === "connection_lost" && (
-          <span className="absolute top-3 left-3 z-20 rounded-[2px] bg-boundary/80 px-2 py-0.5 font-sans text-[10px] font-bold text-chalk uppercase">
-            Reconnecting
-          </span>
-        )}
-        {state?.tournament?.name && (
-          <div className="pointer-events-none absolute top-3 right-3 z-20 flex max-w-[50%] items-center gap-1.5 rounded-[3px] border border-white/20 bg-ink/70 px-1.5 py-1 text-chalk">
-            {state.tournament.logo_url ? (
-              <img
-                src={state.tournament.logo_url}
-                alt=""
-                className="h-6 w-6 rounded-[2px] object-cover"
-              />
-            ) : null}
-            <span className="truncate font-sans text-[9px] font-bold uppercase">
-              {state.tournament.name}
-            </span>
-          </div>
-        )}
-        <LiveInfoOverlays active={infoPanels} state={state} snapshot={scorecard.data ?? null} />
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center px-2">
-          {state?.score ? (
-            <ScoreBar state={state} design={overlayDesign} className="max-w-full" />
-          ) : null}
-        </div>
-        <EventGraphics state={state} />
-      </div>
+      <Seam />
 
       <div>
-        <p className="mb-1 font-sans text-xs text-willow">Live info panels</p>
-        <LiveInfoPanelToggles active={infoPanels} onToggle={toggleInfo} />
+        <SectionTitle>Match information</SectionTitle>
+        <p className="pt-1.5 font-sans text-[0.68rem] text-willow-soft">
+          Swipe the deck over the frame for the scorecard, over analysis, both innings and the
+          squads — or push them from scoring.
+        </p>
+        <Button
+          size="sm"
+          fullWidth
+          variant={deckOpen ? "secondary" : "ghost"}
+          className="mt-2"
+          onClick={() => {
+            setDeckOpen((v) => !v);
+            setDrawerOpen(false);
+          }}
+        >
+          {deckOpen ? "Hide the deck" : "Show the deck"}
+        </Button>
       </div>
 
+      <Seam />
+
+      <OverlayDirectorPanel
+        graphics={state?.graphics}
+        saveFn={(patch) => publicApi.cameraOverlay(slug!, token!, patch)}
+      />
+
+      <Seam />
+
+      <SocialStreamConnect
+        destination={destination}
+        streamKey={streamKey}
+        destinationName={destinationName}
+        onDestination={setDestination}
+        onStreamKey={setStreamKey}
+        onDestinationName={setDestinationName}
+        facebook={invite.data.facebook}
+        camera={slug && token ? { slug, token } : undefined}
+        onFacebookChange={() => void invite.refetch()}
+      />
+      {(destination === "youtube" || !invite.data.facebook?.connected) && (
+        <Button
+          size="sm"
+          fullWidth
+          variant="secondary"
+          loading={saveDest.isPending}
+          onClick={() => saveDest.mutate()}
+        >
+          Save stream key
+        </Button>
+      )}
+
+      <Seam />
+
       <div>
-        <p className="mb-1 font-sans text-xs text-willow">Live overlay design</p>
-        <div className="grid max-h-40 grid-cols-2 gap-1.5 overflow-y-auto sm:grid-cols-3">
+        <SectionTitle>Overlay design</SectionTitle>
+        <div className="grid gap-1.5 pt-2">
           {OVERLAY_DESIGNS.map((design) => (
             <button
               key={design.id}
               type="button"
-              onClick={() => setOverlayDesign(design.id)}
-              className={
+              onClick={() => {
+                setOverlayDesign(design.id);
+                if (slug && token) void publicApi.cameraOverlay(slug, token, { design: design.id });
+              }}
+              aria-pressed={overlayDesign === design.id}
+              className={cn(
+                "rounded-[3px] border px-2 py-1.5 text-left transition-colors",
                 overlayDesign === design.id
-                  ? "rounded-[3px] border-2 border-boundary px-2 py-1.5 text-left"
-                  : "rounded-[3px] border border-willow/30 px-2 py-1.5 text-left"
-              }
+                  ? "border-flip/70 bg-flip/10"
+                  : "border-willow/25 hover:border-willow/60",
+              )}
             >
-              <span className="block font-sans text-[11px] font-semibold text-chalk">
+              <span className="block font-sans text-[0.72rem] font-semibold text-chalk">
                 {design.label}
               </span>
-              <span className="block font-sans text-[9px] text-willow">{design.blurb}</span>
+              <span className="block font-sans text-[0.62rem] leading-snug text-willow-soft">
+                {design.blurb}
+              </span>
             </button>
           ))}
         </div>
       </div>
 
-      <p className="font-sans text-xs text-willow">
-        Score updates live from the scorer. Session: {invite.data.status}
-        {invite.data.whip_publish_url ? " · WHIP ready" : " · WHIP not configured"}
+      <Seam />
+
+      <p className="font-sans text-[0.62rem] leading-relaxed text-willow-soft">
+        Scan this QR on as many phones as you want — each one goes live on its own path.
+        <br />
+        Score updates live from the scorer.
+        <br />
+        Session: {invite.data.status}
+        <br />
+        {whipReady ? "Streaming server ready." : "Streaming server not configured."}
       </p>
+    </div>
+  );
+
+  return (
+    <div className={cn("min-h-dvh bg-ink", landscape && "h-dvh overflow-hidden")}>
+      <DrawerHandle
+        onClick={() => setDrawerOpen(true)}
+        label="Open camera options"
+        className="sm:hidden"
+      />
+
+      <div
+        className={cn(
+          landscape
+            ? "relative h-dvh w-full"
+            : "mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-3 px-3 py-3",
+        )}
+      >
+        <header
+          className={cn(
+            "flex items-center gap-2.5",
+            landscape &&
+              "pointer-events-none absolute inset-x-0 top-0 z-40 bg-gradient-to-b from-black/70 to-transparent p-2 pb-8",
+          )}
+        >
+          <HistoryBackButton fallback="/" className="pointer-events-auto shrink-0" />
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open camera options"
+            className="pointer-events-auto flex size-9 shrink-0 flex-col items-center justify-center gap-1 rounded-[3px] border border-willow/40 bg-ink/50 text-willow-soft hover:border-flip/60 hover:text-flip"
+          >
+            <span aria-hidden="true" className="block h-0.5 w-4 rounded-full bg-current" />
+            <span aria-hidden="true" className="block h-0.5 w-4 rounded-full bg-current" />
+            <span aria-hidden="true" className="block h-0.5 w-4 rounded-full bg-current" />
+          </button>
+          {!landscape && (
+            <div className="min-w-0 flex-1">
+              <p className="font-sans text-[0.6rem] font-bold tracking-[0.16em] text-willow uppercase">
+                External camera
+              </p>
+              <h1 className="truncate font-sans text-[0.95rem] leading-tight font-semibold text-chalk">
+                {invite.data.title}
+              </h1>
+            </div>
+          )}
+          {landscape && <div className="min-w-0 flex-1" />}
+          <span
+            className={cn(
+              "pointer-events-none flex shrink-0 items-center gap-1.5 rounded-[2px] border px-2 py-1",
+              "font-sans text-[0.6rem] font-bold tracking-[0.12em] uppercase",
+              tone === "live"
+                ? "border-flip/70 bg-flip/15 text-flip"
+                : tone === "warn"
+                  ? "border-boundary/60 bg-boundary/15 text-boundary-soft"
+                  : "border-willow/40 bg-ink/50 text-willow-soft",
+            )}
+          >
+            {tone === "live" && <LiveDot />}
+            {tone === "live" ? "Live" : tone === "warn" ? "Attention" : "Ready"}
+          </span>
+        </header>
+
+        {!landscape && tone !== "live" && (
+          <div
+            role="status"
+            className={cn(
+              "rounded-[3px] border px-2.5 py-2 font-sans text-[0.78rem]",
+              tone === "warn"
+                ? "border-boundary/45 bg-boundary/10 text-chalk"
+                : "border-willow/25 bg-pitch/40 text-chalk",
+            )}
+          >
+            <p className="font-semibold">{banner}</p>
+            {error && <p className="mt-0.5 text-[0.7rem] text-willow-soft">{error}</p>}
+            {!whipReady && (
+              <p className="mt-0.5 text-[0.7rem] text-willow-soft">
+                The host must set a public HTTPS MEDIAMTX_WHIP_BASE_URL.
+              </p>
+            )}
+          </div>
+        )}
+
+        <div
+          className={cn(
+            "relative overflow-hidden bg-black",
+            landscape
+              ? "absolute inset-0 z-0 h-dvh w-full rounded-none border-0"
+              : cn(
+                  "max-h-[70dvh] rounded-[4px] border border-willow/30",
+                  "aspect-[9/16] sm:aspect-video sm:max-h-none",
+                ),
+          )}
+        >
+          <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
+
+          {(phase === "idle" ||
+            phase === "permission_required" ||
+            phase === "camera_unavailable" ||
+            phase === "connecting") &&
+            !hasStream && (
+              <div className="absolute inset-0 grid place-items-center bg-ink/90 px-4 text-center">
+                <div>
+                  <p className="font-sans text-sm font-semibold text-chalk">{banner}</p>
+                  <p className="mt-1 font-sans text-xs text-willow">
+                    {phase === "permission_required"
+                      ? "Allow camera and microphone, then tap Retry."
+                      : phase === "camera_unavailable"
+                        ? "Check another app is not using the camera, then Retry."
+                        : phase === "connecting"
+                          ? "Starting camera and stream…"
+                          : "Tap Start camera to begin."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+          {isLive && (
+            <span className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5 rounded-[2px] bg-boundary px-2 py-1 font-sans text-[0.6rem] font-bold tracking-[0.12em] text-chalk uppercase">
+              <LiveDot />
+              Live
+            </span>
+          )}
+          {phase === "connection_lost" && (
+            <span className="absolute top-2.5 left-2.5 z-20 rounded-[2px] bg-boundary/85 px-2 py-1 font-sans text-[0.6rem] font-bold tracking-[0.12em] text-chalk uppercase">
+              Reconnecting
+            </span>
+          )}
+
+          <div ref={overlayHudRef} className="pointer-events-none absolute inset-0 z-10">
+            <LiveBroadcastHud
+              state={state}
+              snapshot={scorecard.data ?? null}
+              design={parseOverlayDesign(state?.graphics?.design ?? overlayDesign)}
+              tickerFallback={invite.data.title}
+            />
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            landscape &&
+              "absolute right-2 bottom-[calc(env(safe-area-inset-bottom)+2.75rem)] z-40 w-[min(46vw,11rem)] flex-col",
+          )}
+        >
+          <Button
+            size="sm"
+            variant={deckOpen ? "secondary" : "ghost"}
+            onClick={() => setDeckOpen((v) => !v)}
+            aria-pressed={deckOpen}
+            className={landscape ? "w-full bg-ink/70" : undefined}
+          >
+            {deckOpen ? "Hide card" : "Scorecard"}
+          </Button>
+          {canFlip && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void flipCamera()}
+              className={landscape ? "w-full bg-ink/70" : undefined}
+            >
+              {facing === "environment" ? "Front" : "Back"}
+            </Button>
+          )}
+          <div className={cn("min-w-0", landscape ? "w-full" : "flex-1")}>{primaryAction}</div>
+        </div>
+
+        {!landscape && (
+          <p className="hidden font-sans text-[0.65rem] text-willow-soft sm:block">
+            Everything else — YouTube, Facebook, overlay and session details — is under the menu.
+          </p>
+        )}
+      </div>
+
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Camera options"
+        description={invite.data.title}
+      >
+        {controls}
+      </Drawer>
     </div>
   );
 }

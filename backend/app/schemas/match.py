@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import Field, StringConstraints, model_validator
 
@@ -124,6 +124,21 @@ class InningsCreate(Schema):
     target_runs: int | None = Field(default=None, ge=1, le=2000)
     is_super_over: bool = False
     is_follow_on: bool = False
+
+
+class OverlayDirectorUpdate(Schema):
+    """What the live camera / OBS overlay should show."""
+
+    panel: Literal["live", "scorecard", "innings1", "innings2", "squad", "over", "sponsor", "hidden"] | None = None
+    ticker: str | None = Field(default=None, max_length=400)
+    ticker_on: bool | None = None
+    show_tournament: bool | None = None
+    design: str | None = Field(default=None, max_length=32)
+    brand_mode: Literal["none", "name", "logo"] | None = None
+    brand_name: str | None = Field(default=None, max_length=80)
+    brand_logo_url: str | None = Field(default=None, max_length=500)
+    sponsor_logo_url: str | None = Field(default=None, max_length=500)
+    sponsor_on: bool | None = None
 
 
 class InningsClose(Schema):

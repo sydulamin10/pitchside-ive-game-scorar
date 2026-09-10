@@ -164,76 +164,89 @@ export function ScoreBoard({ state, title, live = false, className }: ScoreBoard
 
       <Seam />
 
-      <div className="grid gap-3 px-4 py-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          {[state.striker, state.non_striker].map((batter, index) =>
-            batter ? (
-              <p key={batter.player_id} className="flex items-center gap-2 font-sans text-sm text-chalk">
-                {batter.photo_url ? (
-                  <img
-                    src={batter.photo_url}
-                    alt=""
-                    className="h-7 w-7 rounded-full object-cover"
-                  />
-                ) : state.batting_team?.logo_url ? (
-                  <img
-                    src={state.batting_team.logo_url}
-                    alt=""
-                    className="h-7 w-7 rounded-[2px] object-cover opacity-80"
-                  />
-                ) : null}
-                <span>
-                  <span className={cn(index === 0 && "font-semibold")}>
-                    {batter.jersey_number != null ? `#${batter.jersey_number} ` : ""}
-                    {batter.name}
-                    {index === 0 && <span className="text-flip"> *</span>}
-                  </span>{" "}
-                  <span className="tabular text-willow-soft">
-                    {batter.runs} ({batter.balls_faced})
-                  </span>
-                  {(batter.fours > 0 || batter.sixes > 0) && (
-                    <span className="tabular text-willow">
-                      {" "}
-                      · {batter.fours}×4 {batter.sixes}×6
-                    </span>
-                  )}
+      <div className="grid gap-2 px-3 py-3 sm:grid-cols-3">
+        {[state.striker, state.non_striker].map((batter, index) =>
+          batter ? (
+            <div
+              key={batter.player_id}
+              className={cn(
+                "flex items-center gap-2.5 rounded-[6px] border px-2.5 py-2",
+                index === 0
+                  ? "border-flip/45 bg-flip/10"
+                  : "border-willow/20 bg-white/[0.03]",
+              )}
+            >
+              {batter.photo_url ? (
+                <img
+                  src={batter.photo_url}
+                  alt=""
+                  className="h-11 w-11 rounded-full object-cover ring-1 ring-white/20"
+                />
+              ) : state.batting_team?.logo_url ? (
+                <img
+                  src={state.batting_team.logo_url}
+                  alt=""
+                  className="h-11 w-11 rounded-full object-cover opacity-80"
+                />
+              ) : (
+                <span className="grid h-11 w-11 place-items-center rounded-full bg-pitch-line font-sans text-sm font-bold">
+                  {(batter.name[0] ?? "?").toUpperCase()}
                 </span>
-              </p>
-            ) : null,
-          )}
-          {state.current_partnership && state.current_partnership.balls > 0 && (
-            <p className="font-sans text-xs text-willow">
-              Partnership{" "}
-              <span className="tabular">
-                {state.current_partnership.runs} ({state.current_partnership.balls})
-              </span>
-            </p>
-          )}
-        </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-sans text-[0.72rem] font-semibold text-chalk">
+                  {batter.jersey_number != null ? `#${batter.jersey_number} ` : ""}
+                  {batter.name}
+                  {index === 0 && <span className="text-flip"> *</span>}
+                </p>
+                <p className="font-mono text-sm font-bold text-chalk tabular">
+                  {batter.runs}
+                  <span className="text-willow-soft"> ({batter.balls_faced})</span>
+                </p>
+                <p className="font-sans text-[0.6rem] text-willow">
+                  {batter.fours}×4 · {batter.sixes}×6 · SR {batter.strike_rate.toFixed(0)}
+                </p>
+              </div>
+            </div>
+          ) : null,
+        )}
 
         {state.bowler && (
-          <div className="flex items-center gap-2 sm:justify-end sm:text-right">
+          <div className="flex items-center gap-2.5 rounded-[6px] border border-willow/20 bg-white/[0.03] px-2.5 py-2">
             {state.bowler.photo_url ? (
               <img
                 src={state.bowler.photo_url}
                 alt=""
-                className="h-7 w-7 rounded-full object-cover sm:order-2"
+                className="h-11 w-11 rounded-full object-cover ring-1 ring-white/20"
               />
-            ) : null}
-            <div className="sm:order-1">
-              <p className="font-sans text-sm text-chalk">
+            ) : (
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-pitch-line font-sans text-sm font-bold">
+                {(state.bowler.name[0] ?? "?").toUpperCase()}
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-sans text-[0.72rem] font-semibold text-chalk">
                 {state.bowler.jersey_number != null ? `#${state.bowler.jersey_number} ` : ""}
-                {state.bowler.name}{" "}
-                <span className="tabular text-willow-soft">
-                  {state.bowler.wickets}/{state.bowler.runs_conceded}
-                </span>
+                {state.bowler.name}
               </p>
-              <p className="font-sans text-xs text-willow tabular">
+              <p className="font-mono text-sm font-bold text-chalk tabular">
+                {state.bowler.wickets}/{state.bowler.runs_conceded}
+              </p>
+              <p className="font-sans text-[0.6rem] text-willow tabular">
                 {state.bowler.overs_text} ov · econ {state.bowler.economy.toFixed(2)}
                 {state.bowler.maidens > 0 && ` · ${state.bowler.maidens} md`}
               </p>
             </div>
           </div>
+        )}
+
+        {state.current_partnership && state.current_partnership.balls > 0 && (
+          <p className="col-span-full font-sans text-xs text-willow">
+            Partnership{" "}
+            <span className="tabular">
+              {state.current_partnership.runs} ({state.current_partnership.balls})
+            </span>
+          </p>
         )}
       </div>
 

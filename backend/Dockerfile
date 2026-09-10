@@ -32,7 +32,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Tini reaps zombies and forwards signals, so a rolling deploy actually finishes
 # the in-flight scoring request instead of having it killed mid-transaction.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tini curl \
+    && apt-get install -y --no-install-recommends tini curl ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 --shell /usr/sbin/nologin pitchside
 

@@ -16,7 +16,7 @@
  *   anything else    passed straight through, untouched
  */
 
-const VERSION = "v7";
+const VERSION = "v11";
 const SHELL_CACHE = `pitchside-shell-${VERSION}`;
 const ASSET_CACHE = `pitchside-assets-${VERSION}`;
 const DATA_CACHE = `pitchside-data-${VERSION}`;
@@ -76,6 +76,14 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   // PHP proxy to Render — never treat /api as an SPA document.
   if (url.pathname.startsWith("/api/") || url.pathname === "/api" || url.pathname.endsWith("/api-proxy.php")) {
+    return;
+  }
+
+  // Let the browser keep modulepreload / prefetch in its own cache. Serving
+  // those from this worker makes Chrome log unused-preload and cross-world
+  // service worker mismatch, and it does not help hashed /assets anyway.
+  const purpose = `${request.headers.get("sec-purpose") || ""} ${request.headers.get("purpose") || ""}`.toLowerCase();
+  if (request.destination === "" || purpose.includes("prefetch")) {
     return;
   }
 

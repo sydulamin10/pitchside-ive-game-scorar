@@ -1,14 +1,19 @@
 <?php
 /**
- * Same-origin forwarder: browser → this host /api/* → Render.
+ * Same-origin forwarder: browser → this host /api/* → the API host.
  *
  * Avoids cross-origin CORS. Place in the web document root with .htaccess
  * rewriting /api to this file.
+ *
+ * The odcc.live deployment does NOT use this file: the API allows odcc.live as
+ * a CORS origin, so the browser calls https://api.odcc.live directly and gets
+ * SSE too, which cannot be forwarded through PHP. Kept for hosts that block
+ * cross-origin XHR.
  */
 
 declare(strict_types=1);
 
-$upstream = getenv('PITCHSIDE_UPSTREAM') ?: 'https://pitchside-api-kugn.onrender.com';
+$upstream = getenv('PITCHSIDE_UPSTREAM') ?: 'https://api.odcc.live';
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 if (isset($_GET['ps_path'])) {
@@ -34,7 +39,7 @@ foreach ($_SERVER as $key => $value) {
         continue;
     }
     $name = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
-    if (in_array(strtolower($name), ['host', 'content-length', 'connection', 'origin'], true)) {
+    if (in_array(strtolower($name), ['host', 'content-length', 'connection', 'origin', 'accept-encoding'], true)) {
         continue;
     }
     $headers[] = $name . ': ' . $value;
@@ -97,7 +102,8 @@ foreach (explode("\r\n", $rawHeaders) as $line) {
     if (
         str_starts_with($lower, 'transfer-encoding:')
         || str_starts_with($lower, 'connection:')
-        || str_starts_with($lower, 'content-length:')
+        ||         str_starts_with($lower, 'content-length:')
+        || str_starts_with($lower, 'content-encoding:')
         || str_starts_with($lower, 'access-control-')
         || str_starts_with($lower, 'cross-origin-')
     ) {

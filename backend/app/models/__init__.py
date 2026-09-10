@@ -18,6 +18,7 @@ from app.models.match import (
     MatchPlayer,
 )
 from app.models.membership import TeamMembership
+from app.models.setting import AppSetting
 from app.models.stream import StreamSession
 from app.models.team import Player, Team
 from app.models.tournament import (
@@ -30,6 +31,7 @@ from app.models.tournament import (
 from app.models.user import RefreshToken, User
 
 __all__ = [
+    "AppSetting",
     "AuditLog",
     "Base",
     "BracketMatch",

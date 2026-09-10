@@ -15,7 +15,7 @@ import secrets
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse
 
 from app.core.config import settings
 from app.core.errors import BadRequest, Forbidden, ServiceUnavailable
@@ -74,6 +74,48 @@ def create_upload_url(
 
 def _public_url_for(object_key: str) -> str:
     return f"{settings.media_public_base}/{quote(object_key, safe='/')}"
+
+
+def object_key_from_public_url(src: str) -> str | None:
+    """Accept only URLs that point at this API's /media tree."""
+    raw = (src or "").strip()
+    if not raw or ".." in raw:
+        return None
+    base = settings.media_public_base.rstrip("/")
+    parsed = urlparse(raw)
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        allowed = {(urlparse(settings.PUBLIC_API_URL).netloc or "").lower()}
+        media_host = urlparse(base if "://" in base else f"https://{base}").netloc.lower()
+        if media_host:
+            allowed.add(media_host)
+        if parsed.netloc.lower() not in allowed:
+            return None
+    if raw.startswith(f"{base}/"):
+        key = unquote(raw[len(base) + 1 :])
+    else:
+        path = parsed.path or raw
+        if path.startswith("/media/"):
+            key = unquote(path[len("/media/") :])
+        elif path.startswith("media/"):
+            key = unquote(path[len("media/") :])
+        else:
+            return None
+    key = key.lstrip("/")
+    if not key or any(part == ".." for part in key.split("/")):
+        return None
+    return key
+
+
+def local_media_file(object_key: str) -> Path | None:
+    root = local_media_root().resolve()
+    path = (root / object_key).resolve()
+    if not path.is_file():
+        return None
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
 
 
 def _sign(object_key: str, content_type: str, expires: int) -> str:

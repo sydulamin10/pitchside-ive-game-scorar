@@ -132,6 +132,11 @@ class Settings(BaseSettings):
     MEDIAMTX_WHIP_BASE_URL: str = "http://localhost:8889"
     #: MediaMTX RTMP ingest base (optional restream destination).
     MEDIAMTX_RTMP_BASE_URL: str = "rtmp://localhost:1935"
+    #: Internal RTSP pull used by ffmpeg to restream to YouTube / Facebook.
+    MEDIAMTX_RTSP_URL: str = "rtsp://127.0.0.1:8554"
+    #: Meta app for Facebook Login on the camera phone (list Pages, start Live).
+    FACEBOOK_APP_ID: str | None = None
+    FACEBOOK_APP_SECRET: SecretStr | None = None
     #: Legacy aliases (prefer *_BASE_URL).
     MEDIAMTX_WHIP_URL: str | None = None
     MEDIAMTX_HLS_URL: str | None = None

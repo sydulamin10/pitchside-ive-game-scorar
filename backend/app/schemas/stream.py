@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import StringConstraints
 
@@ -26,3 +26,27 @@ class StreamDestinationUpdate(Schema):
     rtmp_url: UrlField | None = None
     stream_key: StreamKey | None = None
     whip_path: PathField | None = None
+
+
+class CameraJoinIn(Schema):
+    """Each phone / this-device camera gets its own WHIP path under the match."""
+
+    device_id: str | None = None
+
+
+class CameraGoLiveIn(Schema):
+    device_id: str | None = None
+    whip_path: str | None = None
+
+
+class CameraEndIn(Schema):
+    device_id: str | None = None
+    whip_path: str | None = None
+
+
+SocialKind = Literal["facebook_page", "facebook_group", "facebook_profile"]
+
+
+class SocialSelectIn(Schema):
+    kind: SocialKind
+    id: str | None = None

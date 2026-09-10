@@ -5,11 +5,14 @@ import type {
   BracketNode,
   BroadcastSession,
   CameraInvite,
+  CameraJoin,
   CareerStats,
   CoinFlipResult,
   DeliveryInput,
   DeliveryLogEntry,
   DeliveryUpdateInput,
+  FacebookAppSettings,
+  FacebookSocialStatus,
   MatchAwards,
   MatchCreateInput,
   MatchListItem,
@@ -17,6 +20,7 @@ import type {
   MatchStatus,
   MatchUpdateInput,
   Message,
+  OverlayDirector,
   OverlayState,
   Participant,
   Player,
@@ -25,6 +29,7 @@ import type {
   Readiness,
   ScoringResponse,
   SessionInfo,
+  SocialDestinationItem,
   SpinWheelResult,
   Standings,
   Team,
@@ -222,6 +227,24 @@ export const broadcast = {
     api.post<BroadcastSession>(`/matches/${matchId}/stream-sessions/active/go-live`, {}),
   end: (matchId: string) =>
     api.post<BroadcastSession>(`/matches/${matchId}/stream-sessions/active/end`, {}),
+  facebookStart: (matchId: string, next?: string) =>
+    api.get<{ auth_url: string; enabled: boolean }>(
+      `/matches/${matchId}/stream-sessions/active/social/facebook/start`,
+      { query: { next } },
+    ),
+  facebookDisconnect: (matchId: string) =>
+    api.post<{ facebook: FacebookSocialStatus }>(
+      `/matches/${matchId}/stream-sessions/active/social/facebook/disconnect`,
+      {},
+    ),
+  socialSelect: (
+    matchId: string,
+    input: { kind: SocialDestinationItem["kind"]; id?: string | null },
+  ) =>
+    api.post<{ selected: SocialDestinationItem; facebook: FacebookSocialStatus }>(
+      `/matches/${matchId}/stream-sessions/active/social/select`,
+      input,
+    ),
 };
 
 // ----------------------------------------------------------------- matches
@@ -272,6 +295,8 @@ export const matches = {
   abandon: (id: string, input: { result_summary?: string | null } = {}) =>
     api.post<MatchSnapshot>(`/matches/${id}/abandon`, input),
   rebuild: (id: string) => api.post<MatchSnapshot>(`/matches/${id}/rebuild`, {}),
+  patchOverlay: (id: string, input: Partial<OverlayDirector>) =>
+    api.patch<OverlayDirector>(`/matches/${id}/overlay`, input),
   addCollaborator: (id: string, input: { email: string; role?: "scorer" | "viewer" }) =>
     api.post<Message>(`/matches/${id}/collaborators`, input),
   deliveries: (
@@ -452,18 +477,80 @@ export const publicApi = {
       method: "POST",
       body: {},
     }),
-  cameraGoLive: (slug: string, token: string) =>
-    api.public<{ status: string }>(`/public/matches/${slug}/camera/${token}/go-live`, {
+  cameraJoin: (slug: string, token: string, deviceId: string) =>
+    api.public<CameraJoin>(`/public/matches/${slug}/camera/${token}/join`, {
       method: "POST",
-      body: {},
+      body: { device_id: deviceId },
     }),
-  cameraEnd: (slug: string, token: string) =>
+  cameraDestinations: (
+    slug: string,
+    token: string,
+    input: { destination_label?: string; rtmp_url?: string; stream_key?: string },
+  ) =>
+    api.public<BroadcastSession>(`/public/matches/${slug}/camera/${token}/destinations`, {
+      method: "PATCH",
+      body: input,
+    }),
+  cameraOverlay: (slug: string, token: string, input: Partial<OverlayDirector>) =>
+    api.public<OverlayDirector>(`/public/matches/${slug}/camera/${token}/overlay`, {
+      method: "PATCH",
+      body: input,
+    }),
+  cameraGoLive: (
+    slug: string,
+    token: string,
+    input: { device_id?: string; whip_path?: string | null } = {},
+  ) =>
+    api.public<{
+      status: string;
+      started_at?: string | null;
+      facebook_ingest?: boolean;
+      facebook?: FacebookSocialStatus;
+    }>(`/public/matches/${slug}/camera/${token}/go-live`, {
+      method: "POST",
+      body: input,
+    }),
+  cameraEnd: (
+    slug: string,
+    token: string,
+    input: { device_id?: string; whip_path?: string | null } = {},
+  ) =>
     api.public<{ status: string }>(`/public/matches/${slug}/camera/${token}/end`, {
       method: "POST",
-      body: {},
+      body: input,
     }),
+  cameraSocial: (slug: string, token: string) =>
+    api.public<{ facebook: FacebookSocialStatus }>(`/public/matches/${slug}/camera/${token}/social`),
+  cameraFacebookStart: (slug: string, token: string) =>
+    api.public<{ auth_url: string; enabled: boolean }>(
+      `/public/matches/${slug}/camera/${token}/social/facebook/start`,
+    ),
+  cameraFacebookDisconnect: (slug: string, token: string) =>
+    api.public<{ facebook: FacebookSocialStatus }>(
+      `/public/matches/${slug}/camera/${token}/social/facebook/disconnect`,
+      { method: "POST", body: {} },
+    ),
+  cameraSocialSelect: (
+    slug: string,
+    token: string,
+    input: { kind: SocialDestinationItem["kind"]; id?: string | null },
+  ) =>
+    api.public<{ selected: SocialDestinationItem; facebook: FacebookSocialStatus }>(
+      `/public/matches/${slug}/camera/${token}/social/select`,
+      { method: "POST", body: input },
+    ),
   tournament: (slug: string) => api.public<PublicTournament>(`/public/tournaments/${slug}`),
   standings: (slug: string) => api.public<Standings>(`/public/tournaments/${slug}/standings`),
+};
+
+export const admin = {
+  matches: (params: { status?: MatchStatus; limit?: number } = {}) =>
+    api.get<MatchListItem[]>("/admin/matches", { query: { ...params } }),
+  patchOverlay: (id: string, input: Partial<OverlayDirector>) =>
+    api.patch<OverlayDirector>(`/admin/matches/${id}/overlay`, input),
+  facebookSettings: () => api.get<FacebookAppSettings>("/admin/settings/facebook"),
+  saveFacebookSettings: (input: { app_id: string; app_secret?: string | null }) =>
+    api.put<FacebookAppSettings>("/admin/settings/facebook", input),
 };
 
 // ------------------------------------------------------------------- tools

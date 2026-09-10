@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from "react-router";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 
 import { Button } from "@/components/ui/Button";
 import { Seam } from "@/components/ui/Surface";
@@ -6,12 +6,14 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 
 import { BrandLogo } from "./Brand";
+import { HistoryBackButton } from "./HistoryBackButton";
 import { InstallAppButton } from "./InstallAppButton";
 
 const NAV = [
   { to: "/features/score", label: "Scoring" },
   { to: "/features/tournament", label: "Tournaments" },
   { to: "/broadcast", label: "Broadcast" },
+  { to: "/pricing", label: "Pricing" },
   { to: "/tools/coin-flip", label: "Toss tools" },
   { to: "/about", label: "About" },
 ];
@@ -23,6 +25,7 @@ const FOOTER = [
       { to: "/features/score", label: "Ball-by-ball scoring" },
       { to: "/features/tournament", label: "Tournaments & NRR" },
       { to: "/broadcast", label: "Broadcast overlay" },
+      { to: "/pricing", label: "Pricing" },
       { to: "/tools/coin-flip", label: "Coin flip" },
       { to: "/tools/spin-wheel", label: "Spin the wheel" },
     ],
@@ -48,14 +51,19 @@ const FOOTER = [
 export function PublicShell() {
   const status = useAuth((state) => state.status);
   const signedIn = status === "authenticated";
+  const location = useLocation();
+  const showBack = location.pathname !== "/";
 
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-pitch-line">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link to="/" className="flex items-center">
-            <BrandLogo />
-          </Link>
+          <div className="flex min-w-0 items-center gap-2">
+            {showBack && <HistoryBackButton fallback="/" />}
+            <Link to="/" className="flex items-center">
+              <BrandLogo />
+            </Link>
+          </div>
 
           <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
             {NAV.map((item) => (

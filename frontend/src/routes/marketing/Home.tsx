@@ -148,6 +148,11 @@ export function Home() {
                 See how the scoring works
               </Button>
             </Link>
+            <Link to="/pricing">
+              <Button variant="ghost" size="lg">
+                Pricing
+              </Button>
+            </Link>
           </div>
           <p className="mt-4 font-sans text-xs text-willow">
             Viewers never sign in. Scorecard links look like{" "}

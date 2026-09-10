@@ -49,8 +49,8 @@ from app.schemas.scoring import (
     DeliveryRejection,
     DeliveryUpdate,
 )
-from app.scoring import DeliveryEvent, build_innings_state, replay, validate_delivery
-from app.services import audit_service, state_cache
+from app.scoring import DeliveryEvent, build_innings_state, compute_target, replay, validate_delivery
+from app.services import audit_service, overlay_director, state_cache
 from app.services.match_query import (
     InningsSnapshot,
     MatchSnapshot,
@@ -656,6 +656,7 @@ async def publish(
     """Refresh the read cache and push a frame to every connected viewer."""
     match = snapshot.match
     compact = snapshot.compact()
+    compact = await overlay_director.attach_for(match.id, compact)
     await state_cache.put_scorecard(match.public_slug, snapshot.to_dict())
     await state_cache.put_compact(match.public_slug, compact)
     await broker.publish(
@@ -1048,6 +1049,7 @@ async def _open_next_innings(session: AsyncSession, snapshot: MatchSnapshot) -> 
     first = snapshot.innings[0].innings
     if first.is_super_over:
         return
+    first_state = snapshot.innings[0].state
     innings = Innings(
         match_id=match.id,
         sequence=2,
@@ -1055,6 +1057,7 @@ async def _open_next_innings(session: AsyncSession, snapshot: MatchSnapshot) -> 
         bowling_team_id=first.batting_team_id,
         status=InningsStatus.IN_PROGRESS,
         overs_limit=first.overs_limit,
+        target_runs=compute_target(first_state.total_runs),
         started_at=None,
     )
     session.add(innings)

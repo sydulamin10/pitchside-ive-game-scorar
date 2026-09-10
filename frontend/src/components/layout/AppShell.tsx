@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 import { toastError } from "@/store/toast";
 
+import { HistoryBackButton } from "./HistoryBackButton";
 import { BrandLogo } from "./Brand";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { InstallAppButton } from "./InstallAppButton";
@@ -25,6 +26,10 @@ export function AppShell() {
   const logout = useAuth((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
+  const links = [
+    ...LINKS,
+    ...(user?.role === "admin" ? [{ to: "/app/admin", label: "Admin" }] : []),
+  ];
   // The drawer is remembered against the route it was opened on, so any
   // navigation closes it without an effect having to chase the location.
   const [menu, setMenu] = useState({ open: false, path: location.pathname });
@@ -44,12 +49,15 @@ export function AppShell() {
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-pitch-line bg-pitch/95 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link to="/app" className="flex items-center">
-            <BrandLogo />
-          </Link>
+          <div className="flex min-w-0 items-center gap-2">
+            <HistoryBackButton fallback="/app" />
+            <Link to="/app" className="flex items-center">
+              <BrandLogo />
+            </Link>
+          </div>
 
           <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
-            {LINKS.map((link) => (
+            {links.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
@@ -99,7 +107,7 @@ export function AppShell() {
 
         {menuOpen && (
           <nav aria-label="Main" className="border-t border-pitch-line px-4 pb-3 md:hidden">
-            {LINKS.map((link) => (
+            {links.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}

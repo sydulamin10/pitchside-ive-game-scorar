@@ -1,0 +1,62 @@
+# ---------------------------------------------------------------------------
+# ODCC LIVE API (pitchside FastAPI backend).
+#
+# Runs as its own compose project so nothing here can recreate or reconfigure
+# the cbg-task-manager stack. The only shared resource is the pre-existing
+# bridge network, joined as `external` so the running nginx container can reach
+# this API by the DNS name `odcc-api` without any change to its own services.
+# ---------------------------------------------------------------------------
+
+name: odcc-api
+
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: odcc-mediamtx
+    restart: unless-stopped
+    volumes:
+      - ./deploy/mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      # ICE media only. WHIP HTTP stays on the Docker network and is reached
+      # through Nginx at https://api.odcc.live/live/ — never published raw.
+      - "8189:8189/udp"
+      - "8189:8189/tcp"
+    networks:
+      proxy:
+        aliases:
+          - odcc-mediamtx
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build:
+      context: ./backend
+    image: odcc-api:latest
+    container_name: odcc-api
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      # Container-internal port. The host publish below is the only new port
+      # taken on this machine, and it is bound to loopback for debugging only.
+      PORT: "8000"
+    volumes:
+      - ./media:/app/media
+    ports:
+      - "127.0.0.1:8100:8000"
+    networks:
+      proxy:
+        aliases:
+          - odcc-api
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  proxy:
+    name: cbg-task-manager_default
+    external: true

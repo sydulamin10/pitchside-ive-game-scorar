@@ -26,6 +26,7 @@ import type {
   DeliveryUpdateInput,
   InningsSnapshot,
   MatchSnapshot,
+  OverlayDirector,
 } from "@/lib/api/types";
 import {
   cacheSnapshot,
@@ -74,6 +75,7 @@ export interface ConsoleController {
   online: boolean;
   streamStatus: StreamStatus;
   updatedAt: number | null;
+  graphics: OverlayDirector | null;
   pending: QueuedDelivery[];
   rejected: QueuedDelivery[];
   busy: boolean;
@@ -536,6 +538,7 @@ export function useConsole(matchId: string | undefined): ConsoleController {
     online,
     streamStatus: stream.status,
     updatedAt: stream.updatedAt,
+    graphics: stream.state?.graphics ?? null,
     pending,
     rejected,
     busy: recordMutation.isPending,

@@ -27,7 +27,7 @@ from app.core.rate_limit import public_rate_limit
 from app.db.session import SessionFactory
 from app.realtime.broker import broker, channel_for_match
 from app.realtime.events import EventType
-from app.services import state_cache
+from app.services import overlay_director, state_cache
 from app.services.match_query import load_snapshot
 
 logger = get_logger(__name__)
@@ -47,7 +47,7 @@ async def match_stream(request: Request, slug: str = Slug) -> EventSourceRespons
     async with SessionFactory() as session:
         snapshot = await load_snapshot(session, slug=slug)
         match_id = str(snapshot.match.id)
-        initial = snapshot.compact()
+        initial = await overlay_director.attach_for(match_id, snapshot.compact())
         await state_cache.put_compact(slug, initial)
 
     channel = channel_for_match(match_id)

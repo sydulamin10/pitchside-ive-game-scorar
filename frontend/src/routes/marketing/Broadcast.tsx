@@ -159,8 +159,8 @@ export default function Broadcast() {
 
       <CtaRow
         title="Streaming a final this season?"
-        body="Score the match as normal and the overlay comes free with it."
-        secondary={{ to: "/guides/youtube-stream-key", label: "Get a YouTube stream key" }}
+        body="Scoring stays free. Going live to a Facebook Page or YouTube is the paid service — rates are on the pricing page."
+        secondary={{ to: "/pricing", label: "See ODCC Live pricing" }}
       />
     </>
   );

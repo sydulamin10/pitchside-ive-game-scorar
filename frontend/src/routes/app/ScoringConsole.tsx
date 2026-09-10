@@ -9,7 +9,12 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
+import { OverlayDirectorPanel } from "@/components/broadcast/OverlayDirectorPanel";
+import { HistoryBackButton } from "@/components/layout/HistoryBackButton";
+import { Drawer, DrawerHandle } from "@/components/ui/Drawer";
+
 import { ScoreBoard } from "@/components/board/ScoreBoard";
+import { LiveInfoDeck, type LiveDeckPanelId } from "@/components/broadcast/LiveInfoDeck";
 import { BallEditor } from "@/components/console/BallEditor";
 import { CreasePanel, type CreaseSelection } from "@/components/console/CreasePanel";
 import { PendingQueue } from "@/components/console/PendingQueue";
@@ -31,10 +36,10 @@ import {
 } from "@/components/ui/Surface";
 import { compactFromSnapshot } from "@/lib/console/compact";
 import { useConsole, type NewBall } from "@/lib/console/useConsole";
-import { copyToClipboard, relativeTime } from "@/lib/utils";
+import { cn, copyToClipboard, relativeTime } from "@/lib/utils";
 import { toast } from "@/store/toast";
 
-type Tab = "pad" | "card" | "log";
+type Tab = "pad" | "card" | "log" | "live";
 
 export default function ScoringConsole() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -42,6 +47,19 @@ export default function ScoringConsole() {
   const { snapshot, innings } = ctl;
 
   const [tab, setTab] = useState<Tab>("pad");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const TABS: Array<[Tab, string, string]> = [
+    ["pad", "Score", "Record the next ball"],
+    ["card", "Scorecard", "Batters, bowlers, both innings"],
+    ["log", "Over by over", "Correct a logged ball"],
+    ["live", "Live deck", "What the camera screen shows"],
+  ];
+
+  const openTab = (next: Tab) => {
+    setTab(next);
+    setDrawerOpen(false);
+  };
   const [selection, setSelection] = useState<CreaseSelection>({
     strikerId: null,
     nonStrikerId: null,
@@ -134,8 +152,22 @@ export default function ScoringConsole() {
 
   return (
     <div className="flex flex-col gap-4">
+      <DrawerHandle onClick={() => setDrawerOpen(true)} label="Open scoring options" />
+
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="flex min-w-0 items-start gap-2.5">
+          <HistoryBackButton className="mt-0.5 shrink-0" />
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open scoring options"
+            className="mt-0.5 flex size-9 shrink-0 flex-col items-center justify-center gap-1 rounded-[3px] border border-willow/40 text-willow-soft hover:border-flip/60 hover:text-flip"
+          >
+            <span aria-hidden="true" className="block h-0.5 w-4 rounded-full bg-current" />
+            <span aria-hidden="true" className="block h-0.5 w-4 rounded-full bg-current" />
+            <span aria-hidden="true" className="block h-0.5 w-4 rounded-full bg-current" />
+          </button>
+          <div className="min-w-0">
           <h1 className="font-sans text-lg font-semibold text-chalk">{match.title}</h1>
           <p className="flex flex-wrap items-center gap-2 pt-1 font-sans text-xs text-willow">
             {match.venue && <span>{match.venue}</span>}
@@ -152,6 +184,7 @@ export default function ScoringConsole() {
             {ctl.fromCache && <Badge tone="quiet">From this device</Badge>}
             {ctl.isProjected && <Badge tone="live">Unsynced balls included</Badge>}
           </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -184,6 +217,10 @@ export default function ScoringConsole() {
         live={ctl.streamStatus === "live" && match.status === "live"}
       />
 
+      <Panel className="p-4">
+        <OverlayDirectorPanel matchId={match.id} graphics={ctl.graphics} />
+      </Panel>
+
       <Lifecycle
         snapshot={snapshot}
         onToss={ctl.setToss}
@@ -199,25 +236,23 @@ export default function ScoringConsole() {
 
       {innings && (
         <>
-          <nav className="flex gap-2" aria-label="Console views">
-            {(
-              [
-                ["pad", "Score"],
-                ["card", "Scorecard"],
-                ["log", "Over by over"],
-              ] as const
-            ).map(([value, label]) => (
+          <nav className="hidden flex-wrap gap-2 md:flex" aria-label="Console views">
+            {TABS.map(([value, label]) => (
               <Button
                 key={value}
                 size="sm"
                 variant={tab === value ? "secondary" : "ghost"}
-                onClick={() => setTab(value)}
+                onClick={() => openTab(value)}
                 aria-current={tab === value}
               >
                 {label}
               </Button>
             ))}
           </nav>
+          <p className="font-sans text-[0.7rem] text-willow-soft">
+            {TABS.find(([value]) => value === tab)?.[1]} — open the menu on the left for the
+            scorecard, both innings and the live deck. On a PC the same menu is available.
+          </p>
 
           {tab === "pad" && (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -305,6 +340,27 @@ export default function ScoringConsole() {
               <InningsScorecard innings={innings} onSelectBall={setEditingId} />
             </div>
           )}
+
+          {/* The same deck the camera operator swipes, so the scorer can check
+              what is on air without opening the broadcast screen. */}
+          {tab === "live" && (
+            <div className="flex flex-col gap-3">
+              <p className="font-sans text-xs text-willow-soft">
+                Swipe or use the tabs — this is exactly what the live screen shows.
+              </p>
+              <LiveInfoDeck
+                state={compactFromSnapshot(snapshot, innings)}
+                snapshot={snapshot}
+                variant="panel"
+                className="h-[32rem] max-h-[75dvh]"
+                activePanel={
+                  ctl.graphics?.panel && ctl.graphics.panel !== "hidden"
+                    ? (ctl.graphics.panel as LiveDeckPanelId)
+                    : undefined
+                }
+              />
+            </div>
+          )}
         </>
       )}
 
@@ -341,6 +397,37 @@ export default function ScoringConsole() {
         onClose={() => setClosing(false)}
         onConfirm={(reason) => void ctl.closeInnings(reason)}
       />
+
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Scoring options"
+        description={match.title}
+      >
+        <div className="flex flex-col gap-2">
+          {TABS.map(([value, label, hint]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => openTab(value)}
+              aria-current={tab === value}
+              className={cn(
+                "rounded-[6px] border px-3 py-2.5 text-left transition-colors",
+                tab === value
+                  ? "border-flip/70 bg-flip/10"
+                  : "border-willow/25 hover:border-willow/60",
+              )}
+            >
+              <span className="block font-sans text-[0.8rem] font-semibold text-chalk">
+                {label}
+              </span>
+              <span className="block font-sans text-[0.65rem] text-willow-soft">{hint}</span>
+            </button>
+          ))}
+        </div>
+        <Seam className="my-3" />
+        <OverlayDirectorPanel matchId={match.id} graphics={ctl.graphics} />
+      </Drawer>
     </div>
   );
 }

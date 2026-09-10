@@ -24,6 +24,7 @@ const Tournaments = lazy(() => import("@/routes/app/Tournaments"));
 const TournamentDetail = lazy(() => import("@/routes/app/TournamentDetail"));
 const Account = lazy(() => import("@/routes/app/Account"));
 const BroadcastStudio = lazy(() => import("@/routes/app/BroadcastStudio"));
+const Admin = lazy(() => import("@/routes/app/Admin"));
 const ToolsPage = lazy(() => import("@/routes/tools/ToolsPage"));
 const PublicMatch = lazy(() => import("@/routes/public/PublicMatch"));
 const PublicTournament = lazy(() => import("@/routes/public/PublicTournament"));
@@ -31,6 +32,7 @@ const PublicClub = lazy(() => import("@/routes/public/PublicClub"));
 const PublicPlayer = lazy(() => import("@/routes/public/PublicPlayer"));
 const Overlay = lazy(() => import("@/routes/public/Overlay"));
 const ExternalCamera = lazy(() => import("@/routes/public/ExternalCamera"));
+const FacebookOAuthReturn = lazy(() => import("@/routes/public/FacebookOAuthReturn"));
 const ScoreFeature = lazy(() => import("@/routes/marketing/ScoreFeature"));
 const TournamentFeature = lazy(() => import("@/routes/marketing/TournamentFeature"));
 const Broadcast = lazy(() => import("@/routes/marketing/Broadcast"));
@@ -39,6 +41,7 @@ const About = lazy(() => import("@/routes/marketing/About"));
 const Legal = lazy(() => import("@/routes/marketing/Legal"));
 const Changelog = lazy(() => import("@/routes/marketing/Changelog"));
 const InstallApp = lazy(() => import("@/routes/marketing/InstallApp"));
+const Pricing = lazy(() => import("@/routes/marketing/Pricing"));
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -48,6 +51,16 @@ function ScrollToTop() {
     window.scrollTo(0, 0);
   }, [pathname]);
   return null;
+}
+
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const user = useAuth((state) => state.user);
+  const status = useAuth((state) => state.status);
+  if (status === "loading") return <Spinner label="Checking your session" />;
+  if (status === "guest" || user?.role !== "admin") {
+    return <Navigate to="/app" replace />;
+  }
+  return <>{children}</>;
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -77,6 +90,11 @@ export function App() {
           <Route path="/s/:slug" element={<PublicMatch />} />
           <Route path="/s/:slug/overlay" element={<Overlay />} />
           <Route path="/s/:slug/camera/:token" element={<ExternalCamera />} />
+          <Route path="/social/facebook/callback" element={<FacebookOAuthReturn />} />
+          <Route
+            path="/api/v1/public/social/facebook/callback"
+            element={<FacebookOAuthReturn />}
+          />
           <Route path="/t/:slug" element={<PublicTournament />} />
           <Route path="/club/:slug" element={<PublicClub />} />
           <Route path="/p/:slug" element={<PublicPlayer />} />
@@ -89,6 +107,7 @@ export function App() {
             <Route path="/features/score" element={<ScoreFeature />} />
             <Route path="/features/tournament" element={<TournamentFeature />} />
             <Route path="/broadcast" element={<Broadcast />} />
+            <Route path="/pricing" element={<Pricing />} />
             <Route
               path="/guides/youtube-stream-key"
               element={<StreamKeyGuide platform="youtube" />}
@@ -124,6 +143,14 @@ export function App() {
             <Route path="tournaments/:tournamentId" element={<TournamentDetail />} />
             <Route path="tools" element={<ToolsPage initial="coin" />} />
             <Route path="account" element={<Account />} />
+            <Route
+              path="admin"
+              element={
+                <RequireAdmin>
+                  <Admin />
+                </RequireAdmin>
+              }
+            />
           </Route>
 
           <Route path="*" element={<NotFound />} />

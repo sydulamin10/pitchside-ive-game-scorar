@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
-from fastapi.responses import Response as RawResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response as RawResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,13 +19,15 @@ import uuid
 
 from app.api.deps import SessionDep
 from app.core.config import settings
-from app.core.errors import NotFound
+from app.core.errors import BadRequest, NotFound
 from app.core.rate_limit import public_rate_limit
 from app.models.match import Match
 from app.models.team import Team
 from app.models.tournament import Tournament
+from app.schemas.match import OverlayDirectorUpdate
+from app.schemas.stream import CameraGoLiveIn, CameraEndIn, CameraJoinIn, SocialSelectIn, StreamDestinationUpdate
 from app.schemas.team import PlayerPublicOut, TeamPublicOut
-from app.services import career_stats, state_cache, team_service, tournament_service
+from app.services import career_stats, media_service, overlay_director, state_cache, team_service, tournament_service
 from app.services.match_query import load_snapshot
 
 router = APIRouter(prefix="/public", tags=["public"], dependencies=[Depends(public_rate_limit)])
@@ -53,6 +55,48 @@ def _not_modified(request: Request, response: Response) -> bool:
     return bool(incoming) and incoming == response.headers.get("ETag")
 
 
+_ASSET_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
+
+
+@router.get("/overlay-asset", summary="CORS-safe logo for the live canvas", include_in_schema=False)
+async def overlay_asset(src: str = Query(..., min_length=4, max_length=800)) -> FileResponse:
+    """Serve a local media file through the JSON API so the WHIP canvas can
+    fetch it with CORS. Drawing api.odcc.live/media directly taints the canvas
+    and Chrome drops the Facebook video track.
+    """
+    key = media_service.object_key_from_public_url(src)
+    if not key:
+        raise BadRequest("Not a media URL.", code="overlay_asset_invalid")
+    path = media_service.local_media_file(key)
+    if path is None:
+        raise NotFound("Image not found.")
+    media_type = _ASSET_TYPES.get(path.suffix.lower(), "application/octet-stream")
+    return FileResponse(
+        path,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+async def _public_compact(session: AsyncSession, slug: str) -> dict[str, Any]:
+    payload = await state_cache.get_compact(slug)
+    match_id = payload.get("match_id") if payload else None
+    if payload is None or not match_id:
+        snapshot = await load_snapshot(session, slug=slug)
+        if payload is None:
+            payload = snapshot.compact()
+        match_id = str(snapshot.match.id)
+        payload["match_id"] = match_id
+        await state_cache.put_compact(slug, payload)
+    return await overlay_director.attach_for(str(match_id), payload)
+
+
 @router.get("/matches/{slug}", summary="Public scorecard", response_model=None)
 async def public_match(
     request: Request,
@@ -78,11 +122,7 @@ async def public_match_state(
     session: SessionDep,
     slug: str = Slug,
 ) -> Any:
-    payload = await state_cache.get_compact(slug)
-    if payload is None:
-        snapshot = await load_snapshot(session, slug=slug)
-        payload = snapshot.compact()
-        await state_cache.put_compact(slug, payload)
+    payload = await _public_compact(session, slug)
     _apply_cache_headers(response, payload)
     if _not_modified(request, response):
         return Response(status_code=304, headers=dict(response.headers))
@@ -94,11 +134,7 @@ async def public_overlay(
     response: Response, session: SessionDep, slug: str = Slug
 ) -> dict[str, Any]:
     """Everything a stream overlay needs, and nothing it does not."""
-    payload = await state_cache.get_compact(slug)
-    if payload is None:
-        snapshot = await load_snapshot(session, slug=slug)
-        payload = snapshot.compact()
-        await state_cache.put_compact(slug, payload)
+    payload = await _public_compact(session, slug)
     response.headers["Cache-Control"] = "no-store"
     score = payload.get("score") or {}
     batting = payload.get("batting_team") or {}
@@ -138,6 +174,7 @@ async def public_overlay(
         "partnership": payload.get("current_partnership"),
         "recent_balls": [ball.get("display") for ball in payload.get("recent_balls", [])],
         "result_summary": payload.get("result_summary"),
+        "graphics": payload.get("graphics"),
     }
 
 
@@ -168,7 +205,7 @@ async def public_camera_info(
     slug: str = Slug,
     token: uuid.UUID = Path(...),
 ) -> dict[str, Any]:
-    from app.services import stream_session_service
+    from app.services import facebook_live, stream_session_service
 
     match, row = await stream_session_service.get_by_camera_token(
         session, slug=slug, token=token
@@ -186,6 +223,8 @@ async def public_camera_info(
         "whip_publish_url": stream_session_service.whip_publish_url(row.whip_path),
         "destination_label": row.destination_label,
         "camera_url": settings.public_camera_url(match.public_slug, str(token)),
+        "multi_publisher": True,
+        "facebook": facebook_live.public_facebook_status(row),
     }
 
 
@@ -271,6 +310,239 @@ async def public_camera_qr(
 
 
 @router.post(
+    "/matches/{slug}/camera/{token}/join",
+    summary="Join as one of many cameras on this QR",
+    response_model=None,
+)
+async def public_camera_join(
+    session: SessionDep,
+    payload: CameraJoinIn,
+    slug: str = Slug,
+    token: uuid.UUID = Path(...),
+) -> dict[str, Any]:
+    from app.services import stream_session_service
+
+    data = await stream_session_service.join_device(
+        session, slug=slug, token=token, device_id=payload.device_id
+    )
+    await session.commit()
+    return data
+
+
+@router.patch(
+    "/matches/{slug}/camera/{token}/destinations",
+    summary="Cameraman saves YouTube / Facebook stream key",
+    response_model=None,
+)
+async def public_camera_destinations(
+    session: SessionDep,
+    payload: StreamDestinationUpdate,
+    slug: str = Slug,
+    token: uuid.UUID = Path(...),
+) -> dict[str, Any]:
+    from app.services import stream_session_service
+
+    row, _key = await stream_session_service.update_public_destinations(
+        session, slug=slug, token=token, payload=payload
+    )
+    await session.commit()
+    return stream_session_service.session_to_dict(row)
+
+
+def _safe_web_return(url: str | None) -> str:
+    from urllib.parse import urlparse
+
+    fallback = settings.PUBLIC_WEB_URL.rstrip("/")
+    if not url:
+        return fallback
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    allowed = {o.rstrip("/") for o in settings.CORS_ORIGINS}
+    allowed.add(fallback)
+    if origin in allowed and parsed.scheme in ("http", "https"):
+        return url
+    return fallback
+
+
+@router.get(
+    "/social/facebook/config",
+    summary="Whether Facebook Login is configured on this server",
+    response_model=None,
+)
+async def public_facebook_config(response: Response) -> dict[str, Any]:
+    from app.services import facebook_live
+
+    response.headers["Cache-Control"] = "no-store"
+    return {"enabled": facebook_live.configured()}
+
+
+@router.get(
+    "/matches/{slug}/camera/{token}/social",
+    summary="Facebook destinations connected to this camera",
+    response_model=None,
+)
+async def public_camera_social(
+    response: Response,
+    session: SessionDep,
+    slug: str = Slug,
+    token: uuid.UUID = Path(...),
+) -> dict[str, Any]:
+    from app.services import facebook_live, stream_session_service
+
+    _match, row = await stream_session_service.get_by_camera_token(
+        session, slug=slug, token=token
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return {"facebook": facebook_live.public_facebook_status(row)}
+
+
+@router.get(
+    "/matches/{slug}/camera/{token}/social/facebook/start",
+    summary="Facebook Login URL for this camera phone",
+    response_model=None,
+)
+async def public_camera_facebook_start(
+    session: SessionDep,
+    slug: str = Slug,
+    token: uuid.UUID = Path(...),
+) -> dict[str, Any]:
+    from app.services import facebook_live, stream_session_service
+
+    match, _row = await stream_session_service.get_by_camera_token(
+        session, slug=slug, token=token
+    )
+    return_to = settings.public_camera_url(match.public_slug, str(token))
+    state = facebook_live.mint_oauth_state(
+        match_id=str(match.id),
+        slug=match.public_slug,
+        camera_token=str(token),
+        return_to=return_to,
+    )
+    return {"auth_url": facebook_live.authorization_url(state), "enabled": True}
+
+
+@router.post(
+    "/matches/{slug}/camera/{token}/social/select",
+    summary="Pick the Facebook Page or Group this camera will go live to",
+    response_model=None,
+)
+async def public_camera_social_select(
+    session: SessionDep,
+    payload: SocialSelectIn,
+    slug: str = Slug,
+    token: uuid.UUID = Path(...),
+) -> dict[str, Any]:
+    from app.services import facebook_live, stream_session_service
+
+    _match, row = await stream_session_service.get_by_camera_token(
+        session, slug=slug, token=token
+    )
+    selected = facebook_live.select_destination(row, kind=payload.kind, dest_id=payload.id)
+    await session.commit()
+    return {"selected": selected, "facebook": facebook_live.public_facebook_status(row)}
+
+
+@router.post(
+    "/matches/{slug}/camera/{token}/social/facebook/disconnect",
+    summary="Forget Facebook Login on this camera",
+    response_model=None,
+)
+async def public_camera_facebook_disconnect(
+    session: SessionDep,
+    slug: str = Slug,
+    token: uuid.UUID = Path(...),
+) -> dict[str, Any]:
+    from app.services import facebook_live, stream_session_service
+
+    _match, row = await stream_session_service.get_by_camera_token(
+        session, slug=slug, token=token
+    )
+    facebook_live.disconnect(row)
+    await session.commit()
+    return {"facebook": facebook_live.public_facebook_status(row)}
+
+
+@router.get(
+    "/social/facebook/callback",
+    summary="Facebook OAuth return",
+    include_in_schema=False,
+)
+async def public_facebook_callback(
+    session: SessionDep,
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    error: str | None = Query(default=None),
+    error_description: str | None = Query(default=None),
+) -> RedirectResponse:
+    from urllib.parse import urlencode
+
+    from app.core.errors import AppError
+    from app.services import facebook_live, stream_session_service
+
+    fallback = settings.PUBLIC_WEB_URL.rstrip("/")
+    return_to = fallback
+    try:
+        if not state:
+            raise facebook_live.BadRequest("Facebook login was cancelled.", code="facebook_oauth_cancelled")
+        claims = facebook_live.read_oauth_state(state)
+        return_to = _safe_web_return(str(claims.get("next") or fallback))
+        if error:
+            raise facebook_live.BadRequest(
+                error_description or error,
+                code="facebook_oauth_denied",
+            )
+        if not code:
+            raise facebook_live.BadRequest("Facebook did not return an auth code.", code="facebook_oauth_cancelled")
+        cam = str(claims.get("cam") or "")
+        slug = str(claims.get("slug") or "")
+        if cam and slug:
+            _match, row = await stream_session_service.get_by_camera_token(
+                session, slug=slug, token=uuid.UUID(cam)
+            )
+        else:
+            match_id = uuid.UUID(str(claims.get("sub")))
+            row = await stream_session_service.get_active_session(session, match_id)
+            if row is None:
+                from app.core.errors import NotFound
+
+                raise NotFound("No active stream session for this match.", code="stream_session_not_found")
+        payload = await facebook_live.exchange_code(code)
+        data = facebook_live.load_social(row)
+        data["facebook"] = payload
+        facebook_live.save_social(row, data)
+        await session.commit()
+        sep = "&" if "?" in return_to else "?"
+        return RedirectResponse(f"{return_to}{sep}fb=connected", status_code=302)
+    except AppError as exc:
+        sep = "&" if "?" in return_to else "?"
+        query = urlencode({"fb_error": exc.message[:180]})
+        return RedirectResponse(f"{return_to}{sep}{query}", status_code=302)
+
+
+@router.patch(
+    "/matches/{slug}/camera/{token}/overlay",
+    summary="Cameraman directs the live overlay",
+    response_model=None,
+)
+async def public_camera_overlay(
+    session: SessionDep,
+    payload: OverlayDirectorUpdate,
+    slug: str = Slug,
+    token: uuid.UUID = Path(...),
+) -> dict[str, Any]:
+    from app.services import stream_session_service
+
+    match, _row = await stream_session_service.get_by_camera_token(
+        session, slug=slug, token=token
+    )
+    graphics = await overlay_director.publish(
+        session, match, payload.model_dump(exclude_unset=True)
+    )
+    await session.commit()
+    return graphics
+
+
+@router.post(
     "/matches/{slug}/camera/{token}/claim",
     summary="Cameraman claims the publisher slot",
     response_model=None,
@@ -294,14 +566,28 @@ async def public_camera_claim(
 )
 async def public_camera_go_live(
     session: SessionDep,
+    payload: CameraGoLiveIn,
     slug: str = Slug,
     token: uuid.UUID = Path(...),
 ) -> dict[str, Any]:
     from app.services import stream_session_service
 
-    row = await stream_session_service.go_live_public(session, slug=slug, token=token)
+    row = await stream_session_service.go_live_public(
+        session,
+        slug=slug,
+        token=token,
+        device_id=payload.device_id,
+        whip_path=payload.whip_path,
+    )
     await session.commit()
-    return {"status": row.status.value, "started_at": row.started_at}
+    from app.services import facebook_live
+
+    return {
+        "status": row.status.value,
+        "started_at": row.started_at,
+        "facebook_ingest": facebook_live.ingest_ready(row),
+        "facebook": facebook_live.public_facebook_status(row),
+    }
 
 
 @router.post(
@@ -311,12 +597,19 @@ async def public_camera_go_live(
 )
 async def public_camera_end(
     session: SessionDep,
+    payload: CameraEndIn,
     slug: str = Slug,
     token: uuid.UUID = Path(...),
 ) -> dict[str, Any]:
     from app.services import stream_session_service
 
-    row = await stream_session_service.end_public(session, slug=slug, token=token)
+    row = await stream_session_service.end_public(
+        session,
+        slug=slug,
+        token=token,
+        device_id=payload.device_id,
+        whip_path=payload.whip_path,
+    )
     await session.commit()
     return {"status": row.status.value, "ended_at": row.ended_at}
 

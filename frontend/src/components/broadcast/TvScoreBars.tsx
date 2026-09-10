@@ -6,6 +6,8 @@
 import type { BallSummary, CompactState } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
+import { chaseCaption } from "@/lib/broadcast/chase";
+import { overlayBrandLogo, overlayBrandMode, overlayBrandName } from "@/lib/broadcast/overlayBrand";
 import type { OverlayDesignId } from "./overlayThemes";
 
 function lastEventLabel(state: CompactState): string | null {
@@ -42,9 +44,11 @@ function OdccMark({ tone = "dark" }: { tone?: "dark" | "light" | "gold" | "muted
 function OverPills({
   balls,
   variant = "dark",
+  size = "md",
 }: {
   balls: BallSummary[] | undefined;
   variant?: "dark" | "light" | "green" | "purple";
+  size?: "md" | "sm";
 }) {
   const items = (balls ?? []).slice(-6);
   while (items.length < 6) items.push(null as unknown as BallSummary);
@@ -58,7 +62,7 @@ function OverPills({
           : "border-white/40 bg-white/15 text-chalk";
 
   return (
-    <div className="flex items-center gap-1">
+    <div className={cn("flex items-center", size === "sm" ? "gap-0.5" : "gap-1")}>
       {items.map((ball, i) => {
         const label = ball ? (ball.is_wicket ? "W" : ball.display === "." ? "•" : ball.display) : "";
         const hot =
@@ -68,7 +72,8 @@ function OverPills({
           <span
             key={i}
             className={cn(
-              "inline-flex h-5 w-5 items-center justify-center rounded-full border font-mono text-[9px] font-bold",
+              "inline-flex items-center justify-center rounded-full border font-mono font-bold",
+              size === "sm" ? "h-4 w-4 text-[8px]" : "h-5 w-5 text-[9px]",
               styles,
               hot && variant === "green" && "bg-flip text-ink",
               hot && variant === "light" && "bg-flip text-ink border-flip",
@@ -196,8 +201,179 @@ function ClassicBar({ state }: { state: CompactState }) {
   );
 }
 
-/** Circle crest — batters | center | bowler */
-function CircleBar({ state }: { state: CompactState }) {
+/**
+ * Circle crest — batters | center | bowler.
+ *
+ * Two compositions rather than one that stretches: the five-panel bar reads
+ * well across a 1920px OBS canvas and collapses into an unreadable sliver on a
+ * phone held in portrait, where the same information wants to stack. The
+ * switch is a container query, so it follows the width the plate is actually
+ * given rather than the viewport — the plate sits in a phone-sized frame even
+ * on a desktop broadcast screen.
+ */
+function CircleBar({ state, dense = false }: { state: CompactState; dense?: boolean }) {
+  if (dense) return <LandscapePlate state={state} />;
+  return (
+    <div className="@container w-full max-w-5xl">
+      <div className="@3xl:hidden">
+        <CompactPlate state={state} />
+      </div>
+      <div className="hidden @3xl:block">
+        <CircleBarWide state={state} />
+      </div>
+    </div>
+  );
+}
+
+/** Half-height strip for landscape camera — one row so the frame stays visible. */
+function LandscapePlate({ state }: { state: CompactState }) {
+  const score = state.score!;
+  const a = state.batting_team?.short_name ?? state.batting_team?.name ?? "BAT";
+  const chase = chaseCaption(score, state.innings_sequence);
+
+  return (
+    <div className="flex w-full items-center gap-1.5 overflow-hidden rounded-[3px] border border-white/15 bg-ink/85 px-1.5 py-0.5 text-chalk shadow-tile backdrop-blur-sm">
+      <LogoBadge
+        url={state.batting_team?.logo_url}
+        short={a}
+        round
+        className="h-4 w-4 ring-1 ring-white/30"
+      />
+      <p className="flex min-w-0 shrink-0 items-baseline gap-1">
+        <span className="truncate font-sans text-[0.5rem] font-bold tracking-wide uppercase">
+          {a}
+        </span>
+        <span className="font-mono text-sm leading-none font-black tabular">
+          {score.runs}
+          <span className="text-chalk/45">-</span>
+          {score.wickets}
+        </span>
+        <span className="font-mono text-[0.48rem] font-semibold text-chalk/70 tabular">
+          {score.overs_text}
+        </span>
+      </p>
+      {chase ? (
+        <p className="min-w-0 truncate font-sans text-[0.48rem] font-semibold text-flip">
+          {chase}
+        </p>
+      ) : null}
+      <div className="min-w-0 flex-1 truncate font-sans text-[0.5rem]">
+        {[state.striker, state.non_striker].map((bat, i) =>
+          bat ? (
+            <span key={bat.player_id} className={cn(i > 0 && "ml-1.5 text-chalk/70")}>
+              {i === 0 ? <span className="text-flip">▸ </span> : null}
+              {bat.name}{" "}
+              <span className="font-mono tabular">
+                {bat.runs}({bat.balls_faced})
+              </span>
+            </span>
+          ) : null,
+        )}
+        {state.bowler ? (
+          <span className="ml-1.5 text-chalk/60">
+            {state.bowler.name} {state.bowler.overs_text}-{state.bowler.runs_conceded}-{state.bowler.wickets}
+          </span>
+        ) : null}
+      </div>
+      <OverPills balls={state.recent_balls} size="sm" />
+    </div>
+  );
+}
+
+/**
+ * The phone-shaped plate: score on top, then the crease, then the bowler and
+ * the over. Everything is one glance deep and nothing truncates to initials.
+ */
+function CompactPlate({ state }: { state: CompactState }) {
+  const score = state.score!;
+  const a = state.batting_team?.short_name ?? state.batting_team?.name ?? "BAT";
+  const b = state.bowling_team?.short_name ?? state.bowling_team?.name ?? "BWL";
+  const chase = chaseCaption(score, state.innings_sequence);
+  const brandName = overlayBrandName(state);
+  const brandLogo = overlayBrandLogo(state);
+  const brandMode = overlayBrandMode(state);
+  const showBrand = brandMode === "name" ? Boolean(brandName) : brandMode === "logo" ? Boolean(brandLogo) : false;
+
+  return (
+    <div className="w-full overflow-hidden rounded-[4px] border border-white/15 bg-ink/85 text-chalk shadow-tile backdrop-blur-sm">
+      {showBrand && (
+        <div className="flex items-center gap-1 border-b border-white/10 px-1.5 py-0.5">
+          {brandMode === "logo" && brandLogo ? (
+            <img src={brandLogo} alt="" className="h-3 w-3 rounded-[2px] object-contain" />
+          ) : null}
+          {brandMode === "name" && brandName ? (
+            <p className="truncate font-sans text-[0.48rem] font-bold tracking-[0.1em] uppercase text-chalk/80">
+              {brandName}
+            </p>
+          ) : null}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5 border-b border-white/10 px-1.5 py-1">
+        <LogoBadge
+          url={state.batting_team?.logo_url}
+          short={a}
+          round
+          className="h-5 w-5 ring-1 ring-white/30"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-sans text-[0.55rem] font-bold tracking-[0.08em] uppercase leading-tight">
+            {a} <span className="text-chalk/45">v</span> {b}
+          </p>
+          {chase ? (
+            <p className="truncate font-sans text-[0.5rem] font-semibold leading-tight text-flip">{chase}</p>
+          ) : (
+            <p className="truncate font-sans text-[0.5rem] leading-tight text-chalk/55 tabular">
+              CRR {score.run_rate.toFixed(2)}
+            </p>
+          )}
+        </div>
+        <p className="flex shrink-0 items-baseline gap-1">
+          <span className="font-mono text-base leading-none font-black tabular">
+            {score.runs}
+            <span className="text-chalk/45">-</span>
+            {score.wickets}
+          </span>
+          <span className="font-mono text-[0.52rem] font-semibold text-chalk/70 tabular">
+            {score.overs_text}
+          </span>
+        </p>
+      </div>
+
+      {(state.striker || state.non_striker) && (
+        <div className="grid grid-cols-2 gap-x-2 px-1.5 py-0.5 font-sans text-[0.58rem]">
+          {[state.striker, state.non_striker].map((bat, i) =>
+            bat ? (
+              <div key={bat.player_id} className="flex min-w-0 items-center gap-1">
+                <span className={cn("min-w-0 truncate", i === 0 && "font-bold")}>
+                  {i === 0 && <span className="text-flip">▸ </span>}
+                  {bat.name}
+                </span>
+                <span className="ml-auto shrink-0 font-mono text-[0.62rem] font-bold tabular">
+                  {bat.runs}
+                  <span className="text-chalk/50">({bat.balls_faced})</span>
+                </span>
+              </div>
+            ) : null,
+          )}
+        </div>
+      )}
+
+      {state.bowler && (
+        <div className="flex items-center gap-1.5 border-t border-white/10 px-1.5 py-0.5">
+          <div className="min-w-0 flex-1 font-sans text-[0.58rem] leading-tight">
+            <span className="truncate font-semibold">{state.bowler.name}</span>
+            <span className="ml-1 font-mono text-chalk/70 tabular">
+              {state.bowler.overs_text}-{state.bowler.runs_conceded}-{state.bowler.wickets}
+            </span>
+          </div>
+          <OverPills balls={state.recent_balls} size="sm" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CircleBarWide({ state }: { state: CompactState }) {
   const score = state.score!;
   const a = state.batting_team?.short_name ?? "BAT";
   const b = state.bowling_team?.short_name ?? "BWL";
@@ -225,7 +401,9 @@ function CircleBar({ state }: { state: CompactState }) {
             {a} vs {b}
           </span>
           {score.target_runs != null && (
-            <span className="rounded-[2px] bg-pitch px-1.5 text-chalk">P1</span>
+            <span className="rounded-[2px] bg-pitch px-1.5 text-chalk">
+              Tgt {score.target_runs}
+            </span>
           )}
         </div>
         <div className="mt-0.5 flex items-end gap-2">
@@ -237,13 +415,12 @@ function CircleBar({ state }: { state: CompactState }) {
           </span>
         </div>
         <OdccMark tone="muted" />
-        {(state.toss?.decision || score.runs_needed != null) && (
+        {(state.toss?.decision || score.target_runs != null || score.runs_needed != null) && (
           <p className="mt-0.5 truncate font-sans text-[9px] text-ink/70 uppercase">
-            {score.runs_needed != null
-              ? `Need ${score.runs_needed} from ${score.balls_remaining ?? "—"}`
-              : state.toss?.winner?.short_name
+            {chaseCaption(score, state.innings_sequence) ??
+              (state.toss?.winner?.short_name
                 ? `Toss ${state.toss.winner.short_name} · ${state.toss.decision ?? ""}`
-                : ""}
+                : "")}
           </p>
         )}
       </div>
@@ -462,10 +639,7 @@ function EmeraldBar({ state, showCard }: { state: CompactState; showCard?: boole
 /** Chase bar with need-runs strip */
 function ChaseBar({ state, showCard }: { state: CompactState; showCard?: boolean }) {
   const score = state.score!;
-  const need =
-    score.runs_needed != null
-      ? `NEED ${score.runs_needed} RUNS FROM ${score.balls_remaining ?? "—"} BALLS`
-      : null;
+  const need = chaseCaption(score, state.innings_sequence);
   return (
     <div className="flex w-full max-w-5xl flex-col items-start gap-2">
       {showCard && <BatterCard state={state} />}
@@ -725,6 +899,15 @@ function TournamentBar({ state }: { state: CompactState }) {
   const score = state.score!;
   const a = state.batting_team?.short_name ?? "BAT";
   const b = state.bowling_team?.short_name ?? "BWL";
+  const brandMode = overlayBrandMode(state);
+  const brandName = overlayBrandName(state);
+  const brandLogo = overlayBrandLogo(state);
+  const heading =
+    brandMode === "name" && brandName
+      ? brandName.slice(0, 28)
+      : brandMode === "logo"
+        ? ""
+        : `${a} vs ${b}`;
   return (
     <div className="flex w-full max-w-5xl items-stretch overflow-hidden shadow-tile">
       <div className="flex min-w-0 flex-1 items-center gap-2 bg-[#0e3d2c] px-2 py-2 text-chalk">
@@ -743,9 +926,11 @@ function TournamentBar({ state }: { state: CompactState }) {
         </div>
       </div>
       <div className="flex min-w-[11rem] flex-col items-center justify-center bg-[#f0b429] px-3 py-1.5 text-ink">
-        <p className="font-sans text-[9px] font-black tracking-[0.14em] uppercase">
-          {state.tournament?.name?.slice(0, 28) || `${a} vs ${b}`}
-        </p>
+        {brandMode === "logo" && brandLogo ? (
+          <img src={brandLogo} alt="" className="mb-0.5 h-6 w-6 rounded-[2px] object-contain" />
+        ) : heading ? (
+          <p className="font-sans text-[9px] font-black tracking-[0.14em] uppercase">{heading}</p>
+        ) : null}
         <p className="font-mono text-2xl font-black tabular">
           {score.runs}-{score.wickets}
         </p>
@@ -882,16 +1067,29 @@ export function mockOverlayState(seed?: Partial<CompactState>): CompactState {
   };
 }
 
+function ChaseBanner({ state }: { state: CompactState }) {
+  const chase = chaseCaption(state.score, state.innings_sequence);
+  if (!chase) return null;
+  return (
+    <div className="mb-1 w-full max-w-5xl rounded-[3px] border border-flip/45 bg-ink/90 px-2 py-1 text-center shadow-tile">
+      <p className="font-sans text-[11px] font-black tracking-[0.14em] text-flip uppercase">{chase}</p>
+    </div>
+  );
+}
+
 export function TvScoreOverlay({
   state,
   design,
   showPlayerCard = true,
   className,
+  dense = false,
 }: {
   state: CompactState;
   design: OverlayDesignId;
   showPlayerCard?: boolean;
   className?: string;
+  /** Landscape camera: half-height strip so more of the frame is visible. */
+  dense?: boolean;
 }) {
   if (!state.score) return null;
 
@@ -910,6 +1108,7 @@ export function TvScoreOverlay({
     );
 
   const bar = (() => {
+    if (dense) return <LandscapePlate state={state} />;
     switch (design) {
       case "classic":
         return <ClassicBar state={state} />;
@@ -940,5 +1139,10 @@ export function TvScoreOverlay({
     }
   })();
 
-  return <div className={cn("w-full max-w-5xl", className)}>{bar}</div>;
+  return (
+    <div className={cn("flex w-full max-w-5xl flex-col items-center", className)}>
+      <ChaseBanner state={state} />
+      {bar}
+    </div>
+  );
 }

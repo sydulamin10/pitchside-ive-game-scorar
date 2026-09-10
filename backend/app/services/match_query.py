@@ -225,6 +225,7 @@ class MatchSnapshot:
             return {
                 "status": match.status.value,
                 "state_version": match.state_version,
+                "match_id": str(match.id),
                 "title": match.title,
                 "result_summary": match.result_summary or self.outcome.summary,
                 **meta,
@@ -234,6 +235,7 @@ class MatchSnapshot:
         return {
             "status": match.status.value,
             "state_version": match.state_version,
+            "match_id": str(match.id),
             "innings_id": str(current.innings.id),
             "innings_sequence": current.innings.sequence,
             "batting_team": _team_dict(current.batting_team),

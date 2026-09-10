@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import authorise_match
 from app.core.config import settings
-from app.core.crypto import encrypt_secret
+from app.core.crypto import encrypt_secret, decrypt_secret
 from app.core.errors import BadRequest, Conflict, NotFound
 from app.models.enums import StreamSessionStatus
 from app.models.match import Match
@@ -135,6 +135,7 @@ async def get_by_camera_token(
 async def claim_publisher(
     session: AsyncSession, *, slug: str, token: uuid.UUID
 ) -> StreamSession:
+    """Mark that a cameraman opened the link. Not exclusive — many phones may join."""
     _match, row = await get_by_camera_token(session, slug=slug, token=token)
     row.publisher_claimed_at = datetime.now(UTC)
     if row.status is StreamSessionStatus.IDLE:
@@ -143,24 +144,184 @@ async def claim_publisher(
     return row
 
 
-async def go_live_public(
-    session: AsyncSession, *, slug: str, token: uuid.UUID
-) -> StreamSession:
+def _safe_device_id(raw: str | None) -> str:
+    text = "".join(ch for ch in (raw or "") if ch.isalnum())[:16]
+    return text or uuid.uuid4().hex[:12]
+
+
+def device_whip_path(base: str | None, device_id: str) -> str | None:
+    if not base:
+        return None
+    return f"{base.rstrip('/')}/{_safe_device_id(device_id)}"
+
+
+async def join_device(
+    session: AsyncSession, *, slug: str, token: uuid.UUID, device_id: str | None
+) -> dict[str, Any]:
+    """Give this phone its own WHIP path so many cameras can publish at once."""
+    _match, row = await get_by_camera_token(session, slug=slug, token=token)
+    safe = _safe_device_id(device_id)
+    path = device_whip_path(row.whip_path, safe)
+    row.publisher_claimed_at = datetime.now(UTC)
+    if row.status is StreamSessionStatus.IDLE:
+        row.status = StreamSessionStatus.PREVIEW
+    await session.flush()
+    return {
+        "device_id": safe,
+        "whip_path": path,
+        "whip_publish_url": whip_publish_url(path),
+        "status": row.status.value,
+    }
+
+
+async def update_public_destinations(
+    session: AsyncSession,
+    *,
+    slug: str,
+    token: uuid.UUID,
+    payload: StreamDestinationUpdate,
+) -> tuple[StreamSession, str | None]:
     _match, row = await get_by_camera_token(session, slug=slug, token=token)
     if row.status is StreamSessionStatus.ENDED:
+        raise BadRequest("Cannot update an ended stream session.", code="stream_ended")
+    data = payload.model_dump(exclude_unset=True)
+    stream_key: str | None = None
+    if "stream_key" in data:
+        stream_key = data.pop("stream_key")
+        if stream_key:
+            row.stream_key_encrypted = encrypt_secret(stream_key)
+    for field, value in data.items():
+        setattr(row, field, value)
+    await session.flush()
+    return row, stream_key
+
+
+def _publish_path(row: StreamSession, device_id: str | None, whip_path: str | None) -> str | None:
+    if whip_path:
+        return whip_path.lstrip("/")
+    if device_id:
+        return device_whip_path(row.whip_path, device_id)
+    return row.whip_path
+
+
+def _match_live_title(match: Match) -> str:
+    if match.title:
+        return match.title[:255]
+    if match.team_a and match.team_b:
+        return f"{match.team_a.name} vs {match.team_b.name}"[:255]
+    return "ODCC LIVE"
+
+
+async def _prepare_social_ingest(row: StreamSession, match: Match) -> None:
+    from app.services import facebook_live
+
+    await facebook_live.prepare_ingest(row, title=_match_live_title(match))
+
+
+async def _finish_social_ingest(row: StreamSession) -> None:
+    from app.services import facebook_live
+
+    await facebook_live.finish_ingest(row)
+
+
+def _facebook_publish_hook(session_id: uuid.UUID):
+    async def _publish() -> None:
+        from app.db.session import SessionFactory
+        from app.services import facebook_live
+
+        async with SessionFactory() as db:
+            row = await db.get(StreamSession, session_id)
+            if row is None:
+                return
+            fb = facebook_live.load_social(row).get("facebook") or {}
+            live_id = str(fb.get("live_video_id") or "")
+            live_token = str(fb.get("live_token") or "")
+        if live_id and live_token:
+            await facebook_live.set_live_now(live_id, live_token)
+
+    return _publish
+
+
+def _facebook_refresh_hook(session_id: uuid.UUID, title: str):
+    async def _refresh() -> tuple[str, str] | None:
+        from app.db.session import SessionFactory
+        from app.services import facebook_live
+
+        async with SessionFactory() as db:
+            row = await db.get(StreamSession, session_id)
+            if row is None:
+                return None
+            await facebook_live.finish_ingest(row)
+            ok = await facebook_live.prepare_ingest(row, title=title)
+            await db.commit()
+            if not ok or not row.rtmp_url or not row.stream_key_encrypted:
+                return None
+            try:
+                key = decrypt_secret(row.stream_key_encrypted)
+            except BadRequest:
+                return None
+            return row.rtmp_url, key
+
+    return _refresh
+
+
+def _restream(row: StreamSession, path: str | None, *, title: str = "ODCC LIVE") -> None:
+    if not path or not row.rtmp_url or not row.stream_key_encrypted:
+        return
+    from app.services import facebook_live, restream_service
+
+    try:
+        key = decrypt_secret(row.stream_key_encrypted)
+    except BadRequest:
+        return
+    refresh = _facebook_refresh_hook(row.id, title) if facebook_live.ingest_ready(row) else None
+    restream_service.schedule(
+        path,
+        row.rtmp_url,
+        key,
+        delay_s=0.5,
+        on_healthy=_facebook_publish_hook(row.id) if refresh else None,
+        on_refresh=refresh,
+    )
+
+
+async def go_live_public(
+    session: AsyncSession,
+    *,
+    slug: str,
+    token: uuid.UUID,
+    device_id: str | None = None,
+    whip_path: str | None = None,
+) -> StreamSession:
+    match, row = await get_by_camera_token(session, slug=slug, token=token)
+    if row.status is StreamSessionStatus.ENDED:
         raise BadRequest("Cannot go live on an ended session.", code="stream_ended")
+    await _prepare_social_ingest(row, match)
     row.status = StreamSessionStatus.LIVE
     row.started_at = row.started_at or datetime.now(UTC)
     row.publisher_claimed_at = datetime.now(UTC)
     row.last_error = None
     await session.flush()
+    _restream(row, _publish_path(row, device_id, whip_path), title=_match_live_title(match))
     return row
 
 
-async def end_public(session: AsyncSession, *, slug: str, token: uuid.UUID) -> StreamSession:
+async def end_public(
+    session: AsyncSession,
+    *,
+    slug: str,
+    token: uuid.UUID,
+    device_id: str | None = None,
+    whip_path: str | None = None,
+) -> StreamSession:
+    """A single phone stopping must not kill the shared QR for everyone else."""
+    from app.services import restream_service
+
     _match, row = await get_by_camera_token(session, slug=slug, token=token)
-    row.status = StreamSessionStatus.ENDED
-    row.ended_at = datetime.now(UTC)
+    path = _publish_path(row, device_id, whip_path)
+    if path:
+        restream_service.stop(path)
+    await _finish_social_ingest(row)
     await session.flush()
     return row
 
@@ -187,21 +348,40 @@ async def update_destinations(
 
 
 async def go_live(session: AsyncSession, user: User, match_id: uuid.UUID) -> StreamSession:
+    from sqlalchemy.orm import joinedload
+
     row = await get_session_for_match(session, user, match_id)
     if row.status is StreamSessionStatus.ENDED:
         raise BadRequest("Cannot go live on an ended session.", code="stream_ended")
+    match = (
+        await session.execute(
+            select(Match)
+            .options(joinedload(Match.team_a), joinedload(Match.team_b))
+            .where(Match.id == match_id)
+            .limit(1)
+        )
+    ).unique().scalar_one_or_none()
+    if match is not None:
+        await _prepare_social_ingest(row, match)
     row.status = StreamSessionStatus.LIVE
     row.started_at = row.started_at or datetime.now(UTC)
     row.publisher_claimed_at = datetime.now(UTC)
     row.last_error = None
     await session.flush()
+    title = _match_live_title(match) if match is not None else "ODCC LIVE"
+    _restream(row, device_whip_path(row.whip_path, "studio") or row.whip_path, title=title)
     return row
 
 
 async def end_session(session: AsyncSession, user: User, match_id: uuid.UUID) -> StreamSession:
+    from app.services import restream_service
+
     row = await get_session_for_match(session, user, match_id)
     row.status = StreamSessionStatus.ENDED
     row.ended_at = datetime.now(UTC)
+    if row.whip_path:
+        restream_service.stop_prefix(row.whip_path)
+    await _finish_social_ingest(row)
     await session.flush()
     return row
 
@@ -214,7 +394,7 @@ def session_to_dict(row: StreamSession, *, stream_key: str | None = None) -> dic
         "destination_label": row.destination_label,
         "rtmp_url": row.rtmp_url,
         "whip_path": row.whip_path,
-        "whip_publish_url": whip_publish_url(row.whip_path),
+        "whip_publish_url": whip_publish_url(device_whip_path(row.whip_path, "studio")),
         "has_stream_key": bool(row.stream_key_encrypted),
         "camera_token": str(row.camera_token) if row.camera_token else None,
         "camera_url": None,
@@ -227,6 +407,10 @@ def session_to_dict(row: StreamSession, *, stream_key: str | None = None) -> dic
     }
     if stream_key is not None:
         payload["stream_key"] = stream_key
+    from app.services import facebook_live
+
+    payload["facebook"] = facebook_live.public_facebook_status(row)
+    payload["facebook_ingest"] = facebook_live.ingest_ready(row)
     return payload
 
 

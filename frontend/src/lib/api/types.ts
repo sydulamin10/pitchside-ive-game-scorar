@@ -244,6 +244,32 @@ export interface CareerStats {
   [key: string]: unknown;
 }
 
+export interface SocialDestinationItem {
+  kind: "facebook_page" | "facebook_group" | "facebook_profile";
+  id: string;
+  name: string;
+}
+
+export interface FacebookSocialStatus {
+  enabled: boolean;
+  connected: boolean;
+  name?: string | null;
+  pages: SocialDestinationItem[];
+  groups: SocialDestinationItem[];
+  profile: SocialDestinationItem | null;
+  selected: { kind: string; id: string; name: string } | null;
+  groups_error?: string | null;
+  ingest_ready?: boolean;
+}
+
+export interface FacebookAppSettings {
+  configured: boolean;
+  app_id: string | null;
+  has_secret: boolean;
+  redirect_uri: string;
+  scopes: string;
+}
+
 export interface BroadcastSession {
   id: string;
   match_id: string;
@@ -263,6 +289,8 @@ export interface BroadcastSession {
   ended_at: string | null;
   created_by_user_id: string;
   created_at: string;
+  facebook?: FacebookSocialStatus;
+  facebook_ingest?: boolean;
 }
 
 export interface CameraInvite {
@@ -274,6 +302,15 @@ export interface CameraInvite {
   whip_publish_url: string | null;
   destination_label: string | null;
   camera_url: string;
+  multi_publisher?: boolean;
+  facebook?: FacebookSocialStatus;
+}
+
+export interface CameraJoin {
+  device_id: string;
+  whip_path: string | null;
+  whip_publish_url: string | null;
+  status: string;
 }
 
 export interface MatchAwards {
@@ -627,6 +664,33 @@ export interface CompactState {
   recent_balls?: BallSummary[];
   result_summary?: string | null;
   next_action?: NextAction;
+  match_id?: string;
+  graphics?: OverlayDirector;
+}
+
+export type OverlayPanel =
+  | "live"
+  | "scorecard"
+  | "innings1"
+  | "innings2"
+  | "squad"
+  | "over"
+  | "sponsor"
+  | "hidden";
+
+export type OverlayBrandMode = "none" | "name" | "logo";
+
+export interface OverlayDirector {
+  panel: OverlayPanel;
+  ticker: string;
+  ticker_on: boolean;
+  show_tournament: boolean;
+  design?: string | null;
+  brand_mode?: OverlayBrandMode;
+  brand_name?: string;
+  brand_logo_url?: string;
+  sponsor_logo_url?: string;
+  sponsor_on?: boolean;
 }
 
 export interface OverlayState {

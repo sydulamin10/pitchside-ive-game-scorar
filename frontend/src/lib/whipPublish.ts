@@ -65,6 +65,34 @@ function waitIceComplete(pc: RTCPeerConnection, timeoutMs = 8_000): Promise<void
   });
 }
 
+function preferH264(connection: RTCPeerConnection): void {
+  const caps = RTCRtpSender.getCapabilities?.("video");
+  if (!caps?.codecs?.length) return;
+  const preferred = [
+    ...caps.codecs.filter((c) => c.mimeType.toLowerCase() === "video/h264"),
+    ...caps.codecs.filter((c) => c.mimeType.toLowerCase() !== "video/h264"),
+  ];
+  for (const transceiver of connection.getTransceivers()) {
+    if (transceiver.sender.track?.kind === "video") {
+      try {
+        transceiver.setCodecPreferences(preferred);
+      } catch {
+        /* Safari may reject mixed codec lists */
+      }
+    }
+  }
+}
+
+function requestVideoKeyFrame(connection: RTCPeerConnection): void {
+  for (const sender of connection.getSenders()) {
+    if (sender.track?.kind !== "video") continue;
+    const keyed = sender as RTCRtpSender & { generateKeyFrame?: () => Promise<void> };
+    if (typeof keyed.generateKeyFrame === "function") {
+      void keyed.generateKeyFrame().catch(() => undefined);
+    }
+  }
+}
+
 async function postOffer(whipUrl: string, offerSdp: string): Promise<{ answer: string; resourceUrl: string | null }> {
   const res = await fetch(whipUrl, {
     method: "POST",
@@ -170,6 +198,7 @@ export function createWhipPublisher(options: WhipPublisherOptions = {}): WhipPub
       if (state === "connected") {
         attempt = 0;
         setStatus("connected");
+        requestVideoKeyFrame(connection);
       } else if (state === "failed" || state === "disconnected") {
         setStatus("reconnecting", "Connection lost");
         void teardownPc().then(scheduleReconnect);
@@ -205,6 +234,8 @@ export function createWhipPublisher(options: WhipPublisherOptions = {}): WhipPub
     for (const track of stream.getTracks()) {
       connection.addTrack(track, stream);
     }
+    preferH264(connection);
+    requestVideoKeyFrame(connection);
 
     const offer = await connection.createOffer();
     await connection.setLocalDescription(offer);

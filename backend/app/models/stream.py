@@ -43,6 +43,8 @@ class StreamSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     rtmp_url: Mapped[str | None] = mapped_column(String(512), default=None)
     #: Fernet ciphertext of the stream key; never returned after create/update.
     stream_key_encrypted: Mapped[str | None] = mapped_column(Text, default=None)
+    #: Fernet JSON of Facebook/YouTube OAuth tokens for one-tap Go live.
+    social_auth_encrypted: Mapped[str | None] = mapped_column(Text, default=None)
     whip_path: Mapped[str | None] = mapped_column(String(160), default=None)
     #: Unauthenticated cameraman invite; minted on create.
     camera_token: Mapped[uuid.UUID | None] = mapped_column(

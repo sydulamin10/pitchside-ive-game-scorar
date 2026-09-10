@@ -23,11 +23,12 @@ from app.schemas.match import (
     MatchCreate,
     MatchListItem,
     MatchUpdate,
+    OverlayDirectorUpdate,
     SquadUpdate,
 )
-from app.services import match_service, scoring_service, stream_session_service
+from app.services import match_service, overlay_director, scoring_service, stream_session_service
 from app.services.match_query import build_snapshot, load_match, load_snapshot
-from app.schemas.stream import StreamDestinationUpdate, StreamSessionCreate
+from app.schemas.stream import SocialSelectIn, StreamDestinationUpdate, StreamSessionCreate
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
@@ -97,7 +98,19 @@ async def get_match_state(
 ) -> dict[str, Any]:
     await authorise_match(session, match_id, user, write=False)
     snapshot = await load_snapshot(session, match_id=match_id)
-    return snapshot.compact()
+    return await overlay_director.attach_for(match_id, snapshot.compact())
+
+
+@router.patch("/{match_id}/overlay", summary="Direct what the live overlay shows")
+async def patch_overlay(
+    match_id: uuid.UUID,
+    payload: OverlayDirectorUpdate,
+    session: SessionDep,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    await authorise_match(session, match_id, user, write=True)
+    match = await load_match(session, match_id=match_id)
+    return await overlay_director.publish(session, match, payload.model_dump(exclude_unset=True))
 
 
 @router.patch("/{match_id}", summary="Update match details, rules or toss", response_model=None)
@@ -463,6 +476,81 @@ async def update_stream_destinations(
     )
     await session.commit()
     return await _session_payload(session, row, stream_key=stream_key)
+
+
+@router.get(
+    "/{match_id}/stream-sessions/active/social/facebook/start",
+    summary="Facebook Login URL for studio Go live",
+    response_model=None,
+)
+async def studio_facebook_start(
+    match_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+    next_url: str | None = Query(default=None, alias="next", max_length=500),
+) -> dict[str, Any]:
+    from urllib.parse import urlparse
+
+    from app.core.config import settings
+    from app.services import facebook_live
+
+    row = await stream_session_service.get_session_for_match(session, user, match_id)
+    slug = (
+        await session.execute(select(Match.public_slug).where(Match.id == match_id).limit(1))
+    ).scalar_one_or_none()
+    fallback = settings.PUBLIC_WEB_URL.rstrip("/")
+    return_to = fallback
+    if next_url:
+        parsed = urlparse(next_url)
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+        allowed = {o.rstrip("/") for o in settings.CORS_ORIGINS}
+        allowed.add(fallback)
+        if origin in allowed and parsed.scheme in ("http", "https"):
+            return_to = next_url
+    state = facebook_live.mint_oauth_state(
+        match_id=str(row.match_id),
+        slug=slug or "",
+        camera_token=str(row.camera_token) if row.camera_token else "",
+        return_to=return_to,
+    )
+    return {"auth_url": facebook_live.authorization_url(state), "enabled": True}
+
+
+@router.post(
+    "/{match_id}/stream-sessions/active/social/select",
+    summary="Pick the Facebook Page or Group for studio Go live",
+    response_model=None,
+)
+async def studio_social_select(
+    match_id: uuid.UUID,
+    payload: SocialSelectIn,
+    session: SessionDep,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    from app.services import facebook_live
+
+    row = await stream_session_service.get_session_for_match(session, user, match_id)
+    selected = facebook_live.select_destination(row, kind=payload.kind, dest_id=payload.id)
+    await session.commit()
+    return {"selected": selected, "facebook": facebook_live.public_facebook_status(row)}
+
+
+@router.post(
+    "/{match_id}/stream-sessions/active/social/facebook/disconnect",
+    summary="Forget Facebook Login on this studio session",
+    response_model=None,
+)
+async def studio_facebook_disconnect(
+    match_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    from app.services import facebook_live
+
+    row = await stream_session_service.get_session_for_match(session, user, match_id)
+    facebook_live.disconnect(row)
+    await session.commit()
+    return {"facebook": facebook_live.public_facebook_status(row)}
 
 
 @router.post(
