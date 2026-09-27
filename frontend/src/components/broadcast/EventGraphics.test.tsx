@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { EventGraphics } from "./EventGraphics";
 import type { CompactState } from "@/lib/api/types";
 
-function frame(display: string, extra: Partial<CompactState> = {}): CompactState {
+function frame(display: string, extra: Partial<CompactState> = {}, deliveryId = `d-${display}`): CompactState {
   return {
     status: "live",
     state_version: 4,
@@ -31,9 +31,8 @@ function frame(display: string, extra: Partial<CompactState> = {}): CompactState
     },
     recent_balls: [
       {
-        delivery_id: `d-${display}`,
-        innings_id: "i1",
-        seq: 1,
+        delivery_id: deliveryId,
+        sequence: extra.state_version ?? 1,
         over_number: 6,
         ball_in_over: 2,
         over_ball_text: "6.2",
@@ -82,6 +81,13 @@ describe("EventGraphics", () => {
   it("stamps OUT on a wicket", async () => {
     render(<EventGraphics state={frame("W")} />);
     expect(await screen.findByText("OUT")).toBeInTheDocument();
+  });
+
+  it("replays FOUR when a second four arrives with a new delivery id", async () => {
+    const { rerender } = render(<EventGraphics state={frame("4")} />);
+    expect(await screen.findByText("FOUR")).toBeInTheDocument();
+    rerender(<EventGraphics state={frame("4", { state_version: 5 }, "d-4-b")} />);
+    expect(await screen.findByText("FOUR")).toBeInTheDocument();
   });
 
   it("does not animate singles, twos, threes or fives", () => {

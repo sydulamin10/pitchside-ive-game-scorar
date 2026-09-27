@@ -217,10 +217,6 @@ export default function ScoringConsole() {
         live={ctl.streamStatus === "live" && match.status === "live"}
       />
 
-      <Panel className="p-4">
-        <OverlayDirectorPanel matchId={match.id} graphics={ctl.graphics} />
-      </Panel>
-
       <Lifecycle
         snapshot={snapshot}
         onToss={ctl.setToss}
@@ -256,7 +252,7 @@ export default function ScoringConsole() {
 
           {tab === "pad" && (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-              <Panel className="order-2 lg:order-1">
+              <Panel className="order-1">
                 {state?.is_complete ? (
                   <EmptyState
                     title="This innings is done"
@@ -286,7 +282,7 @@ export default function ScoringConsole() {
                 )}
               </Panel>
 
-              <div className="order-1 flex flex-col gap-4 lg:order-2">
+              <div className="order-2 flex flex-col gap-4">
                 <CreasePanel
                   innings={innings}
                   bowlingSquad={bowlingSquad}
@@ -307,6 +303,9 @@ export default function ScoringConsole() {
                       Close this innings
                     </Button>
                   </div>
+                </Panel>
+                <Panel className="p-4">
+                  <OverlayDirectorPanel matchId={match.id} graphics={ctl.graphics} />
                 </Panel>
               </div>
             </div>

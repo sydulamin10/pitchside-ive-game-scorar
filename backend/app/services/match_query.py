@@ -200,6 +200,7 @@ class MatchSnapshot:
             "title": match.title,
             "venue": match.venue,
             "city": match.city,
+            "completed_at": match.completed_at.isoformat() if match.completed_at else None,
             "tournament": (
                 {
                     "id": str(match.tournament.id),
@@ -483,8 +484,14 @@ def _team_dict(team: Team) -> dict[str, Any]:
 
 def _squad_member_dict(member: MatchPlayer) -> dict[str, Any]:
     photo_url = None
-    if member.player is not None:
-        photo_url = member.player.photo_url
+    jersey_number = None
+    role = None
+    player = member.player
+    if player is not None:
+        photo_url = player.photo_url
+        jersey_number = player.jersey_number
+        if player.role is not None and str(player.role) != "unknown":
+            role = str(player.role)
     return {
         "id": str(member.id),
         "player_id": str(member.player_id) if member.player_id else None,
@@ -496,6 +503,8 @@ def _squad_member_dict(member: MatchPlayer) -> dict[str, Any]:
         "is_playing": member.is_playing,
         "is_substitute": member.is_substitute,
         "photo_url": photo_url,
+        "jersey_number": jersey_number,
+        "role": role,
     }
 
 

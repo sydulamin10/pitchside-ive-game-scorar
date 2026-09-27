@@ -274,9 +274,12 @@ describe("LiveInfoDeck", () => {
       "Live",
       "Card",
       "Overs",
+      "Worm",
+      "Run rate",
       "1st",
       "2nd",
       "Squads",
+      "Summary",
       "Sponsor",
     ]);
   });

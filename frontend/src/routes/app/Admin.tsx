@@ -2,7 +2,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
+import { AccountControls } from "@/components/admin/AccountControls";
 import { OverlayDirectorPanel } from "@/components/broadcast/OverlayDirectorPanel";
+import { EventGraphics } from "@/components/broadcast/EventGraphics";
+import { mockOverlayState } from "@/components/broadcast/TvScoreBars";
 import { HistoryBackButton } from "@/components/layout/HistoryBackButton";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
@@ -99,8 +102,25 @@ export default function Admin() {
           <p className="font-sans text-xs text-willow-soft">
             Direct the live overlay, ticker and tournament chip for matches that are on air.
           </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Link to="/billing">
+              <Button size="sm" variant="secondary">
+                Billing Portal
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
+
+      <AccountControls />
+
+      <Panel className="flex flex-col gap-3 p-4">
+        <SectionTitle>Overlay preview / test</SectionTitle>
+        <p className="font-sans text-xs text-willow-soft">
+          These buttons play graphics on this page only. They do not change a live match score.
+        </p>
+        <OverlayTestBench />
+      </Panel>
 
       <Panel className="flex flex-col gap-3 p-4">
         <SectionTitle>Facebook Live</SectionTitle>
@@ -178,6 +198,61 @@ export default function Admin() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function OverlayTestBench() {
+  const [preview, setPreview] = useState(mockOverlayState());
+  const fire = (display: string) => {
+    setPreview((current) =>
+      mockOverlayState({
+        ...current,
+        state_version: (current.state_version ?? 1) + 1,
+        recent_balls: [
+          {
+            delivery_id: `test-${display}-${Date.now()}`,
+            sequence: Date.now(),
+            over_number: 6,
+            ball_in_over: 2,
+            over_ball_text: "6.2",
+            display,
+            runs_total: Number.parseInt(display, 10) || 0,
+            batter_runs: Number.parseInt(display, 10) || 0,
+            extra_type: display.includes("wd") ? "wide" : display.includes("nb") ? "no_ball" : null,
+            extra_runs: 0,
+            is_wicket: display.toLowerCase() === "w",
+            is_legal: true,
+            is_free_hit: false,
+            striker_id: "p1",
+            striker_name: "Preview",
+            bowler_id: "p9",
+            bowler_name: "Test",
+            commentary: null,
+          },
+        ],
+      }),
+    );
+  };
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" type="button" variant="ghost" onClick={() => fire("4")}>
+          Test 4
+        </Button>
+        <Button size="sm" type="button" variant="ghost" onClick={() => fire("6")}>
+          Test 6
+        </Button>
+        <Button size="sm" type="button" variant="ghost" onClick={() => fire("W")}>
+          Test wicket
+        </Button>
+        <Button size="sm" type="button" variant="ghost" onClick={() => fire("wd")}>
+          Test wide
+        </Button>
+      </div>
+      <div className="relative h-48 overflow-hidden rounded-[4px] border border-willow/20 bg-ink">
+        <EventGraphics state={preview} />
+      </div>
     </div>
   );
 }

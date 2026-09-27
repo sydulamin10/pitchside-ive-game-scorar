@@ -334,6 +334,10 @@
   pointer-events: none;
 }
 
+.hud-layer {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
 .gfx-wash {
   position: absolute;
   inset: 0;

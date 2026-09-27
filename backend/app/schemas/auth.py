@@ -42,9 +42,16 @@ class UserOut(ORMSchema):
     display_name: str
     role: UserRole
     is_email_verified: bool
+    is_approved: bool = True
     timezone: str
     created_at: datetime
     last_login_at: datetime | None = None
+
+
+class RegisterPendingResponse(Schema):
+    pending_approval: bool = True
+    message: str
+    user: UserOut
 
 
 class TokenResponse(Schema):

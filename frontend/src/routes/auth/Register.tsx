@@ -17,6 +17,7 @@ export function Register() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
 
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }));
@@ -27,11 +28,18 @@ export function Register() {
     setError(null);
     setFieldErrors({});
     try {
-      await register({
+      const result = await register({
         display_name: form.display_name.trim(),
         email: form.email.trim(),
         password: form.password,
       });
+      if (result.pending) {
+        setPending(
+          result.message ||
+            "Account created. An administrator must approve it before you can log in.",
+        );
+        return;
+      }
       void navigate("/app", { replace: true });
     } catch (cause) {
       if (cause instanceof ApiError) {
@@ -53,6 +61,19 @@ export function Register() {
       </p>
       <Seam className="my-5" />
 
+      {pending ? (
+        <Panel className="p-5">
+          <p className="font-sans text-sm text-chalk">{pending}</p>
+          <p className="mt-2 font-sans text-sm text-willow-soft">
+            You will be able to log in after an administrator turns the account on.
+          </p>
+          <div className="mt-4">
+            <Link to="/login" className="text-flip underline underline-offset-4">
+              Back to log in
+            </Link>
+          </div>
+        </Panel>
+      ) : (
       <Panel className="p-5">
         <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
           <TextField
@@ -96,6 +117,7 @@ export function Register() {
           </Button>
         </form>
       </Panel>
+      )}
 
       <p className="mt-4 font-sans text-sm text-willow-soft">
         Already have one?{" "}

@@ -10,10 +10,10 @@ export function useLastEventKey(state: CompactState | null): string | null {
   useEffect(() => {
     if (!state?.recent_balls?.length) return;
     const last = state.recent_balls[state.recent_balls.length - 1];
-    const id = last?.delivery_id ?? `${state.state_version}-${last?.display}`;
+    const id = `${last?.delivery_id || last?.over_ball_text || "ball"}:${last?.sequence ?? ""}:${last?.display ?? ""}`;
     if (id && id !== prev.current) {
       prev.current = id;
-      setKey(`${id}:${last?.display ?? ""}:${state.score?.is_free_hit ? "fh" : ""}`);
+      setKey(`${id}:${state.score?.is_free_hit ? "fh" : ""}`);
     }
   }, [state]);
 

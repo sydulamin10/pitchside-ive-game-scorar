@@ -6,7 +6,7 @@
  * Facebook / YouTube frame matches what the scorer put on air.
  */
 
-import type { ReactNode, Ref } from "react";
+import { useEffect, useState, type ReactNode, type Ref } from "react";
 
 import { EventGraphics } from "@/components/broadcast/EventGraphics";
 import { LiveInfoDeck, type LiveDeckPanelId } from "@/components/broadcast/LiveInfoDeck";
@@ -15,21 +15,21 @@ import { OverlayBrandChip, OverlaySponsorChip } from "@/components/broadcast/Ove
 import { TvScoreOverlay } from "@/components/broadcast/TvScoreBars";
 import type { OverlayDesignId } from "@/components/broadcast/overlayThemes";
 import type { CompactState, MatchSnapshot } from "@/lib/api/types";
+import {
+  deckPositionClass,
+  directorDeckPanel,
+  isCleanCamera,
+  logoPositionClass,
+  showLogo,
+  showPlayerCard,
+  showScoreBar,
+  showTicker,
+  sponsorPositionClass,
+} from "@/lib/broadcast/overlayRules";
+import { matchEndSummaryActive, withEffectivePanel } from "@/lib/broadcast/matchEndSummary";
 import { cn } from "@/lib/utils";
 
-const DECK_PANELS: LiveDeckPanelId[] = [
-  "scorecard",
-  "innings1",
-  "innings2",
-  "squad",
-  "over",
-  "sponsor",
-];
-
-export function directorDeckPanel(panel: string | null | undefined): LiveDeckPanelId | null {
-  if (panel && DECK_PANELS.includes(panel as LiveDeckPanelId)) return panel as LiveDeckPanelId;
-  return null;
-}
+export { directorDeckPanel } from "@/lib/broadcast/overlayRules";
 
 export function captureFrameSize(landscape: boolean): { width: number; height: number } {
   return landscape ? { width: 1280, height: 720 } : { width: 720, height: 1280 };
@@ -71,19 +71,32 @@ export function LiveBroadcastHud({
   tickerFallback?: string | null;
   className?: string;
 }) {
-  const graphics = state?.graphics;
+  const [now, setNow] = useState(() => Date.now());
+  const ticking = matchEndSummaryActive(state) || Boolean(state?.graphics?.summary_until);
+  useEffect(() => {
+    if (!ticking) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [ticking]);
+  const graphics = withEffectivePanel(state?.graphics, state, now);
   const deck = directorDeckPanel(graphics?.panel);
-  const tickerOn = Boolean(graphics?.ticker_on);
+  const tickerOn = showTicker(graphics);
+  const barOn = Boolean(state?.score) && showScoreBar(graphics);
+  const clean = isCleanCamera(graphics);
 
   return (
     <div
       data-testid="live-broadcast-hud"
       className={cn("relative h-full w-full overflow-hidden", className)}
     >
-      <OverlayBrandChip state={state} className="absolute top-3 left-3 z-40" />
-      <OverlaySponsorChip state={state} className="absolute top-3 right-3 z-40" />
-      {deck ? (
-        <div className="absolute inset-x-8 top-14 z-30 mx-auto max-h-[42%] max-w-xl">
+      {!clean && showLogo(graphics) ? (
+        <OverlayBrandChip state={state} className={logoPositionClass(graphics?.logo_pos)} />
+      ) : null}
+      {!clean ? (
+        <OverlaySponsorChip state={state} className={sponsorPositionClass(graphics?.sponsor_pos)} />
+      ) : null}
+      {deck && !clean ? (
+        <div className={cn("hud-layer", deckPositionClass(deck, graphics?.deck_pos))}>
           <LiveInfoDeck
             state={state}
             snapshot={snapshot ?? null}
@@ -93,25 +106,35 @@ export function LiveBroadcastHud({
           />
         </div>
       ) : null}
-      <div
-        className={cn(
-          "absolute inset-x-0 bottom-0 z-20 flex flex-col items-center justify-end px-3 pb-3 pt-10",
-          "bg-gradient-to-t from-black/55 via-black/12 to-transparent",
-        )}
-      >
-        {state?.score ? (
-          <TvScoreOverlay state={state} design={design} showPlayerCard className="max-w-full" />
-        ) : null}
-        <LiveTicker
-          text={graphics?.ticker}
-          fallback={tickerFallback ?? ""}
-          enabled={tickerOn}
-          className="mt-1.5 w-full rounded-[3px]"
-        />
-      </div>
+      {!clean ? (
+        <div
+          className={cn(
+            "absolute inset-x-0 z-20 flex flex-col items-center justify-end px-3 pb-3 pt-10 hud-layer",
+            graphics?.scorebar_pos === "top" ? "top-0 bg-gradient-to-b from-black/55 via-black/12 to-transparent" : "bottom-0 bg-gradient-to-t from-black/55 via-black/12 to-transparent",
+            !barOn && "pt-3",
+          )}
+        >
+          {barOn ? (
+            <TvScoreOverlay
+              state={state!}
+              design={design}
+              showPlayerCard={showPlayerCard(graphics)}
+              className="max-w-full"
+            />
+          ) : null}
+          <LiveTicker
+            text={graphics?.ticker}
+            fallback={tickerFallback ?? ""}
+            enabled={tickerOn}
+            className="mt-1.5 w-full rounded-[3px]"
+          />
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute inset-0 z-50">
         <EventGraphics state={state} />
       </div>
     </div>
   );
 }
+
+export type { LiveDeckPanelId };

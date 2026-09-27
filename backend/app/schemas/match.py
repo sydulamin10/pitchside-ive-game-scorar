@@ -126,10 +126,32 @@ class InningsCreate(Schema):
     is_follow_on: bool = False
 
 
+class OverlaySponsorItem(Schema):
+    id: str | None = Field(default=None, max_length=40)
+    url: str = Field(max_length=500)
+    on: bool = True
+
+
 class OverlayDirectorUpdate(Schema):
     """What the live camera / OBS overlay should show."""
 
-    panel: Literal["live", "scorecard", "innings1", "innings2", "squad", "over", "sponsor", "hidden"] | None = None
+    panel: (
+        Literal[
+            "live",
+            "scorecard",
+            "innings1",
+            "innings2",
+            "squad",
+            "over",
+            "sponsor",
+            "summary",
+            "worm",
+            "runrate",
+            "hidden",
+            "clean",
+        ]
+        | None
+    ) = None
     ticker: str | None = Field(default=None, max_length=400)
     ticker_on: bool | None = None
     show_tournament: bool | None = None
@@ -139,6 +161,22 @@ class OverlayDirectorUpdate(Schema):
     brand_logo_url: str | None = Field(default=None, max_length=500)
     sponsor_logo_url: str | None = Field(default=None, max_length=500)
     sponsor_on: bool | None = None
+    sponsors: list[OverlaySponsorItem] | None = None
+    sponsor_layout: Literal["corner", "grid", "fullscreen"] | None = None
+    scorebar_on: bool | None = None
+    logo_on: bool | None = None
+    player_card_on: bool | None = None
+    anim_four: bool | None = None
+    anim_six: bool | None = None
+    anim_wicket: bool | None = None
+    anim_extras: bool | None = None
+    anim_cue: str | None = Field(default=None, max_length=64)
+    clean: bool | None = None
+    scorebar_pos: Literal["top", "center", "bottom"] | None = None
+    logo_pos: Literal["top-left", "top-right", "bottom-left", "bottom-right"] | None = None
+    sponsor_pos: Literal["top-right", "top-left", "center", "bottom", "fullscreen"] | None = None
+    deck_pos: Literal["top", "center", "bottom"] | None = None
+    summary_until: str | None = Field(default=None, max_length=64)
 
 
 class InningsClose(Schema):

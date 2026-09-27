@@ -12,6 +12,7 @@ from app.models.enums import AuditAction
 from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
+    RegisterPendingResponse,
     RegisterRequest,
     TokenResponse,
     UserOut,
@@ -70,7 +71,7 @@ def _token_response(user: UserOut, issued: auth_service.IssuedTokens) -> TokenRe
 
 @router.post(
     "/register",
-    response_model=TokenResponse,
+    response_model=TokenResponse | RegisterPendingResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(register_rate_limit)],
     summary="Create an account and sign in",
@@ -80,8 +81,14 @@ async def register(
     request: Request,
     response: Response,
     session: SessionDep,
-) -> TokenResponse:
+) -> TokenResponse | RegisterPendingResponse:
     user = await auth_service.register(session, payload, request=request)
+    if not user.is_approved and not user.is_admin:
+        await session.commit()
+        return RegisterPendingResponse(
+            message="Account created. An administrator must approve it before you can log in.",
+            user=UserOut.model_validate(user),
+        )
     issued = await auth_service.issue_tokens(session, user, request=request)
     await session.commit()
     _set_refresh_cookie(response, issued.refresh_token, settings.REFRESH_TOKEN_TTL_SECONDS)

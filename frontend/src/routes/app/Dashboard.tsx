@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Copy, Plus } from "lucide-react";
 import { Link } from "react-router";
 
+import { useAuth } from "@/store/auth";
+
 import { StumpsMark } from "@/components/layout/Brand";
 import { Button } from "@/components/ui/Button";
 import { Badge, EmptyState, Panel, Seam, SectionTitle, Spinner } from "@/components/ui/Surface";
@@ -87,6 +89,7 @@ function MatchRow({ match }: { match: MatchListItem }) {
 }
 
 export default function Dashboard() {
+  const user = useAuth((state) => state.user);
   const { data, isPending, error } = useQuery({
     queryKey: ["matches"],
     queryFn: () => matches.list({ limit: 50 }),
@@ -113,6 +116,27 @@ export default function Dashboard() {
           </Button>
         </Link>
       </div>
+
+      {user?.role === "admin" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link to="/app/admin" className="block">
+            <Panel className="p-4 transition-colors hover:border-flip/50">
+              <p className="font-sans text-sm font-semibold text-chalk">Admin Portal</p>
+              <p className="mt-1 font-sans text-xs text-willow-soft">
+                Approve accounts, set live credits, and direct overlays.
+              </p>
+            </Panel>
+          </Link>
+          <Link to="/billing" className="block">
+            <Panel className="p-4 transition-colors hover:border-flip/50">
+              <p className="font-sans text-sm font-semibold text-chalk">Billing Portal</p>
+              <p className="mt-1 font-sans text-xs text-willow-soft">
+                Record payments, coupons, and the live-credit ledger.
+              </p>
+            </Panel>
+          </Link>
+        </div>
+      ) : null}
 
       {isPending && <Spinner label="Loading your matches" />}
 

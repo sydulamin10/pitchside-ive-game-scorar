@@ -4,8 +4,9 @@
  * the selected design — not a blank HTML snapshot.
  */
 
-import { latestGraphic, graphicHoldMs, type GraphicKind } from "@/lib/broadcast/eventKind";
+import { latestGraphic, graphicHoldMs, parseGraphicCue, type GraphicKind } from "@/lib/broadcast/eventKind";
 import { paintLiveOverlay } from "@/lib/broadcast/overlayPaint";
+import { animationEnabled } from "@/lib/broadcast/overlayRules";
 import type { CompactState, MatchSnapshot } from "@/lib/api/types";
 
 export interface OverlayFrame {
@@ -76,6 +77,7 @@ export function startOverlayCompositor(opts: {
   let running = true;
   let raf = 0;
   let lastGraphicKey: string | null = null;
+  let lastCue = "";
   let graphicKind: GraphicKind = null;
   let graphicAt = 0;
   let prevRuns: number | null = null;
@@ -90,15 +92,26 @@ export function startOverlayCompositor(opts: {
       const state = frame.state;
       if (state) {
         const last = state.recent_balls?.[state.recent_balls.length - 1];
-        const key = last ? `${last.delivery_id}:${last.display}` : null;
+        const key = last
+          ? `${last.delivery_id || last.over_ball_text || "ball"}:${last.sequence}:${last.display}`
+          : null;
         if (key && key !== lastGraphicKey) {
           lastGraphicKey = key;
           const next = latestGraphic(state, prevRuns);
-          if (next) {
+          if (next && animationEnabled(state.graphics, next)) {
             graphicKind = next;
             graphicAt = now;
           }
           if (state.score) prevRuns = state.score.runs;
+        }
+        const cue = state.graphics?.anim_cue ?? "";
+        if (cue && cue !== lastCue) {
+          lastCue = cue;
+          const cued = parseGraphicCue(cue);
+          if (cued && animationEnabled(state.graphics, cued)) {
+            graphicKind = cued;
+            graphicAt = now;
+          }
         }
         if (graphicKind && now - graphicAt > graphicHoldMs(graphicKind, false)) {
           graphicKind = null;

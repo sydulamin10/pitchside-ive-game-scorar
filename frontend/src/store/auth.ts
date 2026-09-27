@@ -18,7 +18,11 @@ interface AuthState {
   status: "loading" | "authenticated" | "guest";
   restore: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (input: { email: string; password: string; display_name: string }) => Promise<void>;
+  register: (input: {
+    email: string;
+    password: string;
+    display_name: string;
+  }) => Promise<{ pending: boolean; message?: string }>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
 }
@@ -52,11 +56,18 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   register: async (input) => {
-    const { user } = await auth.register({
+    const result = await auth.register({
       ...input,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     });
-    set({ user, status: "authenticated" });
+    if ("pending_approval" in result && result.pending_approval) {
+      set({ user: null, status: "guest" });
+      return { pending: true, message: result.message };
+    }
+    if ("user" in result && result.user && "access_token" in result) {
+      set({ user: result.user, status: "authenticated" });
+    }
+    return { pending: false };
   },
 
   logout: async () => {

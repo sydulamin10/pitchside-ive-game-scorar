@@ -64,6 +64,11 @@ export function ImageUpload({
           >
             {value ? "Replace" : "Upload"}
           </Button>
+          {value ? (
+            <Button type="button" size="sm" variant="ghost" onClick={() => onChange("")}>
+              Remove
+            </Button>
+          ) : null}
           <input
             ref={inputRef}
             type="file"

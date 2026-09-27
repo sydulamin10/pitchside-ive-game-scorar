@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     ARGON2_PARALLELISM: int = Field(default=2, ge=1)
     #: Registration can be closed (invite-only deployments).
     ALLOW_REGISTRATION: bool = True
+    #: When false, a new account cannot sign in until an admin approves it.
+    AUTO_APPROVE_REGISTRATION: bool = False
+    #: When false, live-broadcast plan limits are not enforced (tests).
+    BILLING_ENFORCE: bool = True
 
     CORS_ORIGINS: CsvList = Field(default_factory=lambda: ["http://localhost:5173"])
     #: Hosts accepted in the Host header. "*" is refused in production.

@@ -31,12 +31,15 @@ logger = get_logger(__name__)
 
 def _connect_args() -> dict[str, Any]:
     args: dict[str, Any] = {
-        "options": f"-c statement_timeout={settings.DB_STATEMENT_TIMEOUT_MS}",
         # Fail fast rather than hanging a worker on an unreachable database.
         "connect_timeout": 10,
     }
-    if "-pooler." in settings.DATABASE_URL or "pgbouncer=true" in settings.DATABASE_URL:
+    pooled = "-pooler." in settings.DATABASE_URL or "pgbouncer=true" in settings.DATABASE_URL
+    if pooled:
+        # Neon PgBouncer rejects startup `options` such as statement_timeout.
         args["prepare_threshold"] = None
+    else:
+        args["options"] = f"-c statement_timeout={settings.DB_STATEMENT_TIMEOUT_MS}"
     return args
 
 

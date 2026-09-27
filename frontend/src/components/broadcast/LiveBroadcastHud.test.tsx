@@ -50,6 +50,19 @@ describe("LiveBroadcastHud", () => {
     expect(screen.getByText(/Target 151/i)).toBeInTheDocument();
   });
 
+  it("hides the live score bar while a presentation overlay is on air", () => {
+    render(
+      <LiveBroadcastHud
+        state={hudState({ panel: "sponsor" })}
+        snapshot={null}
+        design="circle"
+        tickerFallback="ODCC"
+      />,
+    );
+    expect(screen.getByText("Sponsors")).toBeInTheDocument();
+    expect(screen.queryByText(/Target 151/i)).not.toBeInTheDocument();
+  });
+
   it("puts the sponsor panel on air when the director selects it", () => {
     render(
       <LiveBroadcastHud

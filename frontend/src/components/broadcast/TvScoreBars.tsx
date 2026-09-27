@@ -35,8 +35,8 @@ function OdccMark({ tone = "dark" }: { tone?: "dark" | "light" | "gold" | "muted
           : "text-ink/45";
   return (
     <div className={cn("mt-0.5 flex items-center gap-1", color)}>
-      <img src="/branding/odcc-live.png" alt="" className="h-3.5 w-3.5 object-contain" />
-      <p className="font-sans text-[7px] font-semibold tracking-[0.2em] uppercase">ODCC LIVE</p>
+      <img src="/branding/odcc-live.png" alt="" className="h-7 w-7 object-contain" />
+      <p className="font-sans text-[12px] font-semibold tracking-[0.18em] uppercase">ODCC LIVE</p>
     </div>
   );
 }
@@ -68,15 +68,22 @@ function OverPills({
         const hot =
           ball &&
           (ball.is_wicket || ball.batter_runs >= 4 || (ball.display || "").includes("6"));
+        const tone =
+          ball && ball.is_wicket
+            ? "border-[#c0392b] bg-[#c0392b] text-white"
+            : ball && (ball.batter_runs >= 6 || ball.display === "6" || (ball.display || "").startsWith("6"))
+              ? "border-[#8e44ad] bg-[#8e44ad] text-white"
+              : ball && (ball.batter_runs >= 4 || ball.display === "4" || (ball.display || "").startsWith("4"))
+                ? "border-[#f1c40f] bg-[#f1c40f] text-ink"
+                : styles;
         return (
           <span
             key={i}
             className={cn(
               "inline-flex items-center justify-center rounded-full border font-mono font-bold",
               size === "sm" ? "h-4 w-4 text-[8px]" : "h-5 w-5 text-[9px]",
-              styles,
-              hot && variant === "green" && "bg-flip text-ink",
-              hot && variant === "light" && "bg-flip text-ink border-flip",
+              tone,
+              hot && variant === "green" && !ball?.is_wicket && ball.batter_runs < 4 && "bg-flip text-ink",
               !ball && "opacity-30",
             )}
           >
@@ -1077,6 +1084,135 @@ function ChaseBanner({ state }: { state: CompactState }) {
   );
 }
 
+/** ICC 2021–2024 lower third: flags, crease, centre score, bowler, this over. */
+function IccBar({ state }: { state: CompactState }) {
+  const score = state.score!;
+  const bat = state.batting_team?.short_name ?? "BAT";
+  const bowl = state.bowling_team?.short_name ?? "BWL";
+  const chase = chaseCaption(score, state.innings_sequence);
+  return (
+    <div className="flex w-full max-w-5xl items-stretch overflow-hidden rounded-sm bg-[#071018]/92 text-chalk shadow-tile">
+      <LogoBadge
+        url={state.batting_team?.logo_url}
+        short={bat}
+        round
+        className="m-1 h-11 w-11 self-center ring-2 ring-white/40"
+      />
+      <div className="flex min-w-0 flex-1 flex-col justify-center px-2 py-1 font-sans text-[11px] uppercase">
+        {[state.striker, state.non_striker].map((batter, i) =>
+          batter ? (
+            <div key={batter.player_id} className="flex items-baseline gap-2">
+              <span className={cn("min-w-0 truncate", i === 0 && "font-black text-flip")}>
+                {i === 0 ? "▸ " : ""}
+                {batter.name}
+              </span>
+              <span className="ml-auto font-mono tabular">
+                <span className="font-black">{batter.runs}</span>{" "}
+                <span className="opacity-55">{batter.balls_faced}</span>
+              </span>
+            </div>
+          ) : null,
+        )}
+      </div>
+      <div className="flex min-w-[11rem] flex-col items-center justify-center bg-[#123a66] px-3 py-1.5">
+        <p className="font-sans text-[10px] font-bold tracking-wide uppercase opacity-80">
+          {bat} v {bowl}
+        </p>
+        <p className="font-mono text-2xl font-black tabular leading-none">
+          {score.runs}-{score.wickets}
+          <span className="ml-1 text-sm font-semibold opacity-80">{score.overs_text}</span>
+        </p>
+        {chase ? (
+          <p className="max-w-[14rem] truncate font-sans text-[9px] font-bold tracking-wide text-[#f3d36a] uppercase">
+            {chase}
+          </p>
+        ) : (
+          <p className="font-sans text-[9px] uppercase opacity-70">CRR {score.run_rate.toFixed(2)}</p>
+        )}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col items-end justify-center gap-0.5 px-2 py-1">
+        {state.bowler ? (
+          <p className="max-w-full truncate font-sans text-[11px] font-bold uppercase">
+            {state.bowler.name}{" "}
+            <span className="font-mono font-semibold tabular opacity-80">
+              {state.bowler.overs_text}-{state.bowler.runs_conceded}-{state.bowler.wickets}
+            </span>
+          </p>
+        ) : null}
+        <OverPills balls={state.recent_balls} size="sm" />
+      </div>
+      <LogoBadge
+        url={state.bowling_team?.logo_url}
+        short={bowl}
+        round
+        className="m-1 h-11 w-11 self-center ring-2 ring-white/40"
+      />
+    </div>
+  );
+}
+
+/** Broadcast strip: this-over balls, target, batters and bowler. */
+function StatBar({ state }: { state: CompactState }) {
+  const score = state.score!;
+  const bat = state.batting_team?.short_name ?? "BAT";
+  const target = score.target_runs;
+  return (
+    <div className="w-full max-w-5xl overflow-hidden rounded-sm bg-gradient-to-r from-[#2a1050] via-[#4a1a7a] to-[#2a1050] text-chalk shadow-tile">
+      <div className="flex items-center gap-2 px-2 py-1">
+        <LogoBadge url={state.batting_team?.logo_url} short={bat} round className="h-9 w-9 ring-1 ring-white/30" />
+        <div className="flex items-center gap-2 rounded-sm bg-[#1a0a33] px-2 py-1">
+          <span className="font-sans text-[11px] font-black tracking-wide uppercase">{bat}</span>
+          <span className="font-mono text-lg font-black tabular leading-none">
+            {score.runs}-{score.wickets}
+          </span>
+          <span className="font-mono text-[11px] tabular opacity-80">{score.overs_text}</span>
+        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 font-sans text-[9px] font-bold tracking-[0.12em] uppercase opacity-70">
+            This over
+          </span>
+          <OverPills balls={state.recent_balls} variant="purple" />
+        </div>
+        {target != null ? (
+          <div className="rounded-sm bg-[#6d28d9] px-2 py-1 text-center">
+            <p className="font-sans text-[8px] font-bold tracking-[0.14em] uppercase opacity-80">Target</p>
+            <p className="font-mono text-lg font-black leading-none tabular">{target}</p>
+          </div>
+        ) : (
+          <p className="font-mono text-xs tabular opacity-80">CRR {score.run_rate.toFixed(2)}</p>
+        )}
+        <LogoBadge
+          url={state.bowling_team?.logo_url}
+          short={state.bowling_team?.short_name}
+          round
+          className="h-9 w-9 ring-1 ring-white/30"
+        />
+      </div>
+      <div className="flex items-center gap-3 border-t border-white/10 bg-black/20 px-3 py-1 font-sans text-[11px] uppercase">
+        {[state.striker, state.non_striker].map((batter, i) =>
+          batter ? (
+            <span key={batter.player_id} className={cn("flex gap-1.5", i === 0 && "font-black text-[#c4b5fd]")}>
+              {i === 0 ? "▸ " : ""}
+              {batter.name}{" "}
+              <span className="font-mono tabular">
+                {batter.runs}({batter.balls_faced})
+              </span>
+            </span>
+          ) : null,
+        )}
+        {state.bowler ? (
+          <span className="ml-auto font-semibold">
+            {state.bowler.name}{" "}
+            <span className="font-mono tabular">
+              {state.bowler.wickets}-{state.bowler.runs_conceded} {state.bowler.overs_text}
+            </span>
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function TvScoreOverlay({
   state,
   design,
@@ -1134,6 +1270,10 @@ export function TvScoreOverlay({
         return <TournamentBar state={state} />;
       case "minimal":
         return <MinimalBar state={state} />;
+      case "icc":
+        return <IccBar state={state} />;
+      case "stat":
+        return <StatBar state={state} />;
       default:
         return <CircleBar state={state} />;
     }
@@ -1141,7 +1281,7 @@ export function TvScoreOverlay({
 
   return (
     <div className={cn("flex w-full max-w-5xl flex-col items-center", className)}>
-      <ChaseBanner state={state} />
+      {design === "icc" || design === "stat" ? null : <ChaseBanner state={state} />}
       {bar}
     </div>
   );

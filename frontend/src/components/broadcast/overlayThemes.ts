@@ -61,6 +61,16 @@ export const OVERLAY_DESIGNS = [
     label: "Minimal",
     blurb: "Compact score only (portrait-friendly)",
   },
+  {
+    id: "icc",
+    label: "ICC Live",
+    blurb: "World Cup style: flags, chase, this over, both ends",
+  },
+  {
+    id: "stat",
+    label: "This Over",
+    blurb: "Broadcast strip: this-over balls, target, batters, bowler",
+  },
 ] as const;
 
 export type OverlayDesignId = (typeof OVERLAY_DESIGNS)[number]["id"];

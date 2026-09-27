@@ -28,26 +28,43 @@ import type {
   SquadMember,
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { RunRateGraph, WormGraph } from "@/components/broadcast/BroadcastMatchCharts";
 
-export type LiveDeckPanelId = "live" | "scorecard" | "innings1" | "innings2" | "squad" | "over" | "sponsor";
+export type LiveDeckPanelId =
+  | "live"
+  | "scorecard"
+  | "innings1"
+  | "innings2"
+  | "squad"
+  | "over"
+  | "worm"
+  | "runrate"
+  | "sponsor"
+  | "summary";
 
 const PANEL_LABELS: Record<LiveDeckPanelId, { tab: string; title: string }> = {
   live: { tab: "Live", title: "At the crease" },
   scorecard: { tab: "Card", title: "Scorecard" },
   over: { tab: "Overs", title: "Over analysis" },
+  worm: { tab: "Worm", title: "Worm graph" },
+  runrate: { tab: "Run rate", title: "Run rate" },
   innings1: { tab: "1st", title: "1st innings" },
   innings2: { tab: "2nd", title: "2nd innings" },
   squad: { tab: "Squads", title: "Squads" },
   sponsor: { tab: "Sponsor", title: "Sponsors" },
+  summary: { tab: "Summary", title: "Match summary" },
 };
 
 const DEFAULT_PANELS: LiveDeckPanelId[] = [
   "live",
   "scorecard",
   "over",
+  "worm",
+  "runrate",
   "innings1",
   "innings2",
   "squad",
+  "summary",
   "sponsor",
 ];
 
@@ -604,6 +621,36 @@ function OverPanel({
 
 // ------------------------------------------------------------------- squads
 
+const ROLE_SHORT: Record<string, string> = {
+  batter: "Bat",
+  bowler: "Bowl",
+  allrounder: "AR",
+  wicket_keeper: "WK",
+};
+
+function PlayerAvatar({ member }: { member: SquadMember }) {
+  const initials = member.name
+    .split(" ")
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+  if (member.photo_url) {
+    return (
+      <img
+        src={member.photo_url}
+        alt=""
+        className="size-6 shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-willow/20 font-sans text-[0.55rem] font-bold text-flip">
+      {initials || "•"}
+    </span>
+  );
+}
+
 function SquadPanel({ snapshot }: { snapshot: MatchSnapshot | null }) {
   const squads = snapshot?.squads;
   const teams = snapshot?.match?.teams
@@ -613,7 +660,7 @@ function SquadPanel({ snapshot }: { snapshot: MatchSnapshot | null }) {
   if (!squads || teams.length === 0) return <Empty>Squads are not loaded yet.</Empty>;
 
   return (
-    <div className="grid gap-3 @md:grid-cols-2">
+    <div className="grid gap-2 @md:grid-cols-2">
       {teams.map((team) => {
         const members: SquadMember[] = (squads[team.id] ?? []).filter((m) => m.is_playing);
         return (
@@ -622,20 +669,27 @@ function SquadPanel({ snapshot }: { snapshot: MatchSnapshot | null }) {
             {members.length === 0 ? (
               <Empty>Not announced.</Empty>
             ) : (
-              <ol className="space-y-0.5">
-                {members.map((m, i) => (
+              <ol className="space-y-0">
+                {members.slice(0, 11).map((m, i) => (
                   <li
                     key={m.id}
-                    className="flex items-baseline gap-2 border-t border-willow/15 py-1 font-sans text-[0.7rem] first:border-t-0"
+                    className="flex items-center gap-1.5 border-t border-willow/15 py-0.5 font-sans text-[0.65rem] first:border-t-0"
                   >
-                    <span className="w-4 shrink-0 font-mono text-[0.6rem] text-willow-soft tabular-nums">
+                    <span className="w-3.5 shrink-0 font-mono text-[0.55rem] text-willow-soft tabular-nums">
                       {i + 1}
                     </span>
-                    <span className="min-w-0 text-chalk">
+                    <PlayerAvatar member={m} />
+                    <span className="min-w-0 flex-1 truncate text-chalk">
+                      {m.jersey_number != null ? (
+                        <Muted className="mr-1 text-[0.55rem]">#{m.jersey_number}</Muted>
+                      ) : null}
                       {m.name}
-                      {m.is_captain && <Muted className="text-[0.6rem]"> (c)</Muted>}
-                      {m.is_wicket_keeper && <Muted className="text-[0.6rem]"> (wk)</Muted>}
+                      {m.is_captain && <Muted className="text-[0.55rem]"> (c)</Muted>}
+                      {m.is_wicket_keeper && <Muted className="text-[0.55rem]"> (wk)</Muted>}
                     </span>
+                    {m.role && ROLE_SHORT[m.role] ? (
+                      <Muted className="shrink-0 text-[0.5rem] uppercase">{ROLE_SHORT[m.role]}</Muted>
+                    ) : null}
                   </li>
                 ))}
               </ol>
@@ -648,13 +702,49 @@ function SquadPanel({ snapshot }: { snapshot: MatchSnapshot | null }) {
 }
 
 function SponsorPanel({ state }: { state: CompactState | null }) {
-  const url = state?.graphics?.sponsor_logo_url?.trim();
-  if (!url) {
+  const urls = (state?.graphics?.sponsors ?? [])
+    .filter((item) => item.on !== false && item.url?.trim())
+    .map((item) => item.url.trim());
+  const legacy = state?.graphics?.sponsor_logo_url?.trim();
+  const list = urls.length > 0 ? urls : legacy ? [legacy] : [];
+  if (list.length === 0) {
     return <Empty>Upload a sponsor logo from On the live screen.</Empty>;
   }
+  const grid = list.length > 1 || state?.graphics?.sponsor_layout === "grid";
+  if (!grid) {
+    return (
+      <div className="flex min-h-[10rem] items-center justify-center py-3">
+        <img src={list[0]} alt="Sponsor" className="max-h-48 max-w-full object-contain" />
+      </div>
+    );
+  }
   return (
-    <div className="flex min-h-[8rem] items-center justify-center py-4">
-      <img src={url} alt="Sponsor" className="max-h-36 max-w-full object-contain" />
+    <div className="grid grid-cols-2 gap-3 py-2 @md:grid-cols-3">
+      {list.map((url, i) => (
+        <div key={`${url}-${i}`} className="flex min-h-[4.5rem] items-center justify-center rounded-[3px] bg-ink/40 p-2">
+          <img src={url} alt="Sponsor" className="max-h-24 max-w-full object-contain" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SummaryPanel({ snapshot, state }: { snapshot: MatchSnapshot | null; state: CompactState | null }) {
+  const inns = snapshot?.innings ?? [];
+  const summary = snapshot?.result?.summary || state?.result_summary;
+  if (inns.length === 0 && !summary) return <Empty>Match summary will appear here.</Empty>;
+  return (
+    <div className="flex flex-col gap-2">
+      {summary ? <p className="font-sans text-sm font-semibold text-flip">{summary}</p> : null}
+      {inns.map((inn) => (
+        <p key={inn.id} className="font-sans text-[0.75rem] text-chalk">
+          {inn.batting_team_name}{" "}
+          <span className="font-mono font-bold">
+            {inn.state.total_runs}/{inn.state.wickets}
+          </span>{" "}
+          <Muted>({inn.state.overs_text} ov)</Muted>
+        </p>
+      ))}
     </div>
   );
 }
@@ -683,6 +773,7 @@ export function LiveInfoDeck({
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const programmatic = useRef(false);
+  const visiblePanels = activePanel ? [activePanel] : panels;
 
   const current = useMemo(
     () =>
@@ -700,9 +791,9 @@ export function LiveInfoDeck({
     const el = trackRef.current;
     if (!el || programmatic.current) return;
     const width = el.clientWidth || 1;
-    const next = Math.max(0, Math.min(panels.length - 1, Math.round(el.scrollLeft / width)));
+    const next = Math.max(0, Math.min(visiblePanels.length - 1, Math.round(el.scrollLeft / width)));
     setIndex((prev) => (prev === next ? prev : next));
-  }, [panels.length]);
+  }, [visiblePanels.length]);
 
   const goTo = useCallback((next: number) => {
     const el = trackRef.current;
@@ -724,9 +815,8 @@ export function LiveInfoDeck({
 
   useEffect(() => {
     if (!activePanel) return;
-    const next = panels.indexOf(activePanel);
-    if (next >= 0) goTo(next);
-  }, [activePanel, panels, goTo]);
+    goTo(0);
+  }, [activePanel, goTo]);
 
   // Keep the visible panel pinned to its slide when the container is resized
   // (phone rotation, or the drawer that holds the deck changing width).
@@ -752,8 +842,14 @@ export function LiveInfoDeck({
         return innings2 ? <InningsPanel innings={innings2} /> : <Empty>Not started.</Empty>;
       case "over":
         return <OverPanel innings={current} state={state} />;
+      case "worm":
+        return <WormGraph snapshot={snapshot} />;
+      case "runrate":
+        return <RunRateGraph snapshot={snapshot} />;
       case "squad":
         return <SquadPanel snapshot={snapshot} />;
+      case "summary":
+        return <SummaryPanel snapshot={snapshot} state={state} />;
       case "sponsor":
         return <SponsorPanel state={state} />;
     }
@@ -778,7 +874,7 @@ export function LiveInfoDeck({
           aria-label="Match information panels"
           className="deck-track flex min-w-0 flex-1 gap-1 overflow-x-auto"
         >
-          {panels.map((id, i) => (
+          {visiblePanels.map((id, i) => (
             <button
               key={id}
               type="button"
@@ -813,14 +909,14 @@ export function LiveInfoDeck({
         onScroll={handleScroll}
         className="deck-track flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
       >
-        {panels.map((id, i) => (
+        {visiblePanels.map((id, i) => (
           <div
             key={id}
             role="tabpanel"
             aria-hidden={i !== index}
             // A container, so the tables drop their 4s/6s/maidens columns based
             // on the deck's own width rather than the viewport's.
-            className="@container w-full shrink-0 snap-center overflow-y-auto px-2.5 py-2.5"
+            className="@container w-full shrink-0 snap-center overflow-y-auto px-2 py-1.5"
           >
             <PanelHeading>{PANEL_LABELS[id].title}</PanelHeading>
             {body(id)}
@@ -828,9 +924,9 @@ export function LiveInfoDeck({
         ))}
       </div>
 
-      {panels.length > 1 && (
+      {visiblePanels.length > 1 && (
         <footer className="flex items-center justify-center gap-1.5 border-t border-willow/20 py-1.5">
-          {panels.map((id, i) => (
+          {visiblePanels.map((id, i) => (
             <button
               key={id}
               type="button"

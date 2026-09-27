@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import Request
@@ -924,7 +924,19 @@ async def _finalise(
 
     # Rebuild once more so the response (and the realtime frame) include any
     # innings that was just opened and the final match status.
-    return await build_snapshot(session, match)
+    snapshot = await build_snapshot(session, match)
+    if status_before is not MatchStatus.COMPLETED and match.status is MatchStatus.COMPLETED:
+        until = (match.completed_at or datetime.now(UTC)) + timedelta(seconds=60)
+        await overlay_director.put(
+            str(match.id),
+            {
+                "panel": "summary",
+                "summary_until": until.isoformat(),
+            },
+        )
+    elif status_before is MatchStatus.COMPLETED and match.status is not MatchStatus.COMPLETED:
+        await overlay_director.put(str(match.id), {"panel": "hidden", "summary_until": ""})
+    return snapshot
 
 
 async def _repair_strike_assignments(

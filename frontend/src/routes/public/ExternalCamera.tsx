@@ -16,6 +16,7 @@ import { OverlayDirectorPanel } from "@/components/broadcast/OverlayDirectorPane
 import {
   LiveBroadcastHud,
   captureFrameSize,
+  directorDeckPanel,
 } from "@/components/broadcast/LiveBroadcastHud";
 import {
   SocialStreamConnect,
@@ -248,13 +249,7 @@ export default function ExternalCamera() {
   }, [state?.graphics?.design]);
 
   const directorPanel = state?.graphics?.panel ?? "hidden";
-  const directorDeck =
-    directorPanel === "scorecard" ||
-    directorPanel === "innings1" ||
-    directorPanel === "innings2" ||
-    directorPanel === "squad" ||
-    directorPanel === "over" ||
-    directorPanel === "sponsor";
+  const directorDeck = Boolean(directorDeckPanel(directorPanel));
 
   useEffect(() => {
     if (directorPanel === "hidden") {

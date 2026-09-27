@@ -70,6 +70,7 @@ async def register(
         display_name=payload.display_name,
         password_hash=hash_password(payload.password),
         timezone=payload.timezone or "UTC",
+        is_approved=settings.AUTO_APPROVE_REGISTRATION,
     )
     session.add(user)
     try:
@@ -134,6 +135,12 @@ async def authenticate(
 
     if not user.is_active:
         raise Forbidden("This account has been disabled.", code="account_disabled")
+
+    if not user.is_approved and not user.is_admin:
+        raise Forbidden(
+            "This account is waiting for admin approval. You cannot log in yet.",
+            code="account_pending_approval",
+        )
 
     if password_needs_rehash(user.password_hash):
         user.password_hash = hash_password(password)
@@ -227,6 +234,11 @@ async def rotate_refresh_token(
     ).scalar_one_or_none()
     if user is None or not user.is_active:
         raise Unauthorized("Your session is no longer valid.", code="invalid_token")
+    if not user.is_approved and not user.is_admin:
+        raise Forbidden(
+            "This account is waiting for admin approval. You cannot log in yet.",
+            code="account_pending_approval",
+        )
 
     issued = await issue_tokens(session, user, request=request, family_id=record.family_id)
     record.revoked_at = now

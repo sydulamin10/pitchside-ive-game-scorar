@@ -25,6 +25,7 @@ const TournamentDetail = lazy(() => import("@/routes/app/TournamentDetail"));
 const Account = lazy(() => import("@/routes/app/Account"));
 const BroadcastStudio = lazy(() => import("@/routes/app/BroadcastStudio"));
 const Admin = lazy(() => import("@/routes/app/Admin"));
+const BillingAdmin = lazy(() => import("@/routes/billing/BillingAdmin"));
 const ToolsPage = lazy(() => import("@/routes/tools/ToolsPage"));
 const PublicMatch = lazy(() => import("@/routes/public/PublicMatch"));
 const PublicTournament = lazy(() => import("@/routes/public/PublicTournament"));
@@ -123,6 +124,15 @@ export function App() {
             <Route path="/terms" element={<Legal document="terms" />} />
             <Route path="/changelog" element={<Changelog />} />
           </Route>
+
+          <Route
+            path="/billing"
+            element={
+              <RequireAdmin>
+                <BillingAdmin />
+              </RequireAdmin>
+            }
+          />
 
           <Route
             path="/app"

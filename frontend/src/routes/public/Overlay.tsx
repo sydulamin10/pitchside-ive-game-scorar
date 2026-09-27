@@ -2,10 +2,10 @@
  * TV-style OBS browser-source overlay with selectable international designs.
  *
  * Query: position, scale, design=classic|circle|split|arena|emerald|chase|modern|
- *        premium|dark|clean|tournament|minimal, charts=1, awards=1, card=0
+ *        premium|dark|clean|tournament|minimal|icc|stat, charts=1, awards=1, card=0
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 
@@ -19,6 +19,18 @@ import { TvScoreOverlay } from "@/components/broadcast/TvScoreBars";
 import { parseOverlayDesign, type OverlayDesignId } from "@/components/broadcast/overlayThemes";
 import { publicApi } from "@/lib/api/endpoints";
 import type { CompactState } from "@/lib/api/types";
+import {
+  deckPositionClass,
+  directorDeckPanel,
+  isCleanCamera,
+  logoPositionClass,
+  showLogo,
+  showPlayerCard,
+  showScoreBar,
+  showTicker,
+  sponsorPositionClass,
+} from "@/lib/broadcast/overlayRules";
+import { matchEndSummaryActive, withEffectivePanel } from "@/lib/broadcast/matchEndSummary";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
 import { cn } from "@/lib/utils";
 
@@ -26,24 +38,28 @@ export default function Overlay() {
   const { slug } = useParams<{ slug: string }>();
   const [params] = useSearchParams();
   const { state } = useMatchStream(slug, { pollMs: 2_000 });
+  const [now, setNow] = useState(() => Date.now());
+  const ticking = matchEndSummaryActive(state) || Boolean(state?.graphics?.summary_until);
+  useEffect(() => {
+    if (!ticking) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [ticking]);
 
   const position = params.get("position") === "top" ? "top" : "bottom";
   const scale = Number(params.get("scale") ?? "1") || 1;
-  const graphics = state?.graphics;
+  const graphics = withEffectivePanel(state?.graphics, state, now);
   const directorPanel = graphics?.panel ?? "hidden";
   const design = parseOverlayDesign(graphics?.design ?? params.get("design") ?? params.get("style"));
   const showCharts = params.get("charts") === "1";
   const showAwards = params.get("awards") === "1" || state?.status === "completed";
-  const showCard = params.get("card") !== "0";
-  const showDeck =
-    directorPanel === "scorecard" ||
-    directorPanel === "innings1" ||
-    directorPanel === "innings2" ||
-    directorPanel === "squad" ||
-    directorPanel === "over" ||
-    directorPanel === "sponsor";
-  const tickerOn = Boolean(graphics?.ticker_on);
+  const showCard = params.get("card") !== "0" && showPlayerCard(graphics);
+  const deck = directorDeckPanel(directorPanel);
+  const showDeck = Boolean(deck) && !isCleanCamera(graphics);
+  const tickerOn = showTicker(graphics);
   const tickerFallback = state?.tournament?.name || state?.title || "ODCC LIVE";
+  const barOn = Boolean(state?.score) && showScoreBar(graphics) && !isCleanCamera(graphics);
+  const clean = isCleanCamera(graphics);
 
   const awardsQuery = useQuery({
     queryKey: ["overlay-awards", slug],
@@ -83,38 +99,52 @@ export default function Overlay() {
 
   return (
     <>
-      <OverlayBrandChip state={state} className="fixed top-3 left-3 z-40" />
-      <OverlaySponsorChip state={state} className="fixed top-3 right-3 z-40" />
-      <LiveTicker
-        text={graphics?.ticker}
-        fallback={tickerFallback}
-        enabled={tickerOn}
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 rounded-none border-x-0"
-      />
+      {!clean && showLogo(graphics) ? (
+        <OverlayBrandChip state={state} className={cn("fixed z-40", logoPositionClass(graphics?.logo_pos).replace("absolute", "fixed"))} />
+      ) : null}
+      {!clean ? (
+        <OverlaySponsorChip
+          state={state}
+          className={cn("fixed z-40", sponsorPositionClass(graphics?.sponsor_pos).replace("absolute", "fixed"))}
+        />
+      ) : null}
+      {!clean ? (
+        <LiveTicker
+          text={graphics?.ticker}
+          fallback={tickerFallback}
+          enabled={tickerOn}
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-40 rounded-none border-x-0"
+        />
+      ) : null}
       {/* Full-viewport layer so EventGraphics absolute safe-zone anchors to the frame */}
       <div className="pointer-events-none fixed inset-0 z-50">
         <EventGraphics state={state} />
       </div>
-      {showDeck && (
-        <div className="pointer-events-none fixed inset-x-2 top-12 z-30 mx-auto max-h-[40vh] max-w-xl">
+      {showDeck && deck ? (
+        <div className={cn("pointer-events-none fixed z-30", deckPositionClass(deck, graphics?.deck_pos).replace("absolute", "fixed"))}>
           <LiveInfoDeck
             state={state}
             snapshot={scorecard.data ?? null}
             variant="overlay"
-            activePanel={directorPanel as LiveDeckPanelId}
+            activePanel={deck as LiveDeckPanelId}
             className="h-full"
           />
         </div>
-      )}
+      ) : null}
+      {!clean ? (
       <div
         className={cn(
-          "fixed inset-x-0 flex flex-col items-center gap-2 px-2 sm:px-3",
-          position === "top" ? "top-3 sm:top-4" : tickerOn ? "bottom-10 sm:bottom-11" : "bottom-3 sm:bottom-4",
+          "fixed inset-x-0 flex flex-col items-center gap-2 px-2 sm:px-3 hud-layer",
+          graphics?.scorebar_pos === "top" || position === "top"
+            ? "top-3 sm:top-4"
+            : tickerOn
+              ? "bottom-10 sm:bottom-11"
+              : "bottom-3 sm:bottom-4",
           "pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]",
         )}
         style={{
           transform: `scale(${scale})`,
-          transformOrigin: position === "top" ? "top" : "bottom",
+          transformOrigin: graphics?.scorebar_pos === "top" || position === "top" ? "top" : "bottom",
         }}
       >
         {showCharts && chartSeries.length > 0 && (
@@ -127,10 +157,11 @@ export default function Overlay() {
             <MatchAwardsPanel awards={awardsQuery.data} />
           </div>
         )}
-        {state?.score && (
+        {barOn && state?.score ? (
           <TvScoreOverlay state={state} design={design} showPlayerCard={showCard} />
-        )}
+        ) : null}
       </div>
+      ) : null}
     </>
   );
 }

@@ -15,8 +15,19 @@ import {
   type GraphicKind,
 } from "@/lib/broadcast/eventKind";
 import { overlayBrandLogo, overlayBrandMode, overlayBrandName } from "@/lib/broadcast/overlayBrand";
+import {
+  activeSponsors,
+  isCleanCamera,
+  isPresentationPanel,
+  showCornerSponsor,
+  showLogo,
+  showScoreBar,
+  showTicker,
+} from "@/lib/broadcast/overlayRules";
 import { parseOverlayDesign, type OverlayDesignId } from "@/components/broadcast/overlayThemes";
+import { withEffectivePanel } from "@/lib/broadcast/matchEndSummary";
 import type { CompactState, MatchSnapshot } from "@/lib/api/types";
+import { matchChartSeries } from "@/lib/broadcast/matchCharts";
 
 export interface OverlayPaintFrame {
   state: CompactState | null;
@@ -155,6 +166,26 @@ const PALETTES: Record<OverlayDesignId, Omit<DesignPalette, "id">> = {
     text: "#f4f1e8",
     muted: "rgba(244,241,232,0.7)",
     accent: "#f3d36a",
+    light: false,
+  },
+  icc: {
+    bar: "#071018",
+    barEnd: "#123a66",
+    scoreBg: "#123a66",
+    scoreFg: "#f4f1e8",
+    text: "#f4f1e8",
+    muted: "rgba(244,241,232,0.75)",
+    accent: "#f3d36a",
+    light: false,
+  },
+  stat: {
+    bar: "#2a1050",
+    barEnd: "#4a1a7a",
+    scoreBg: "#1a0a33",
+    scoreFg: "#f4f1e8",
+    text: "#f4f1e8",
+    muted: "rgba(196,181,253,0.85)",
+    accent: "#c4b5fd",
     light: false,
   },
 };
@@ -312,56 +343,66 @@ function drawLogoBadge(
 }
 
 function drawBrand(ctx: CanvasRenderingContext2D, state: CompactState) {
+  if (!showLogo(state.graphics)) return;
   const mode = overlayBrandMode(state);
   if (mode === "none") return;
+  const pos = state.graphics?.logo_pos ?? "top-left";
+  const box = 112;
+  const inset = 16;
+  const x = pos === "top-right" || pos === "bottom-right" ? ctx.canvas.width - box - inset : inset;
+  const y = pos === "bottom-left" || pos === "bottom-right" ? ctx.canvas.height - box - 48 : inset;
   if (mode === "logo") {
     const custom = overlayBrandLogo(state);
     const img = overlayImage(custom) || overlayImage(SITE_BRAND);
     if (!img) {
       const name = overlayBrandName(state);
       if (!name) return;
-      ctx.font = "700 14px sans-serif";
-      const w = Math.min(360, 28 + ctx.measureText(name.toUpperCase()).width);
+      ctx.font = "700 22px sans-serif";
+      const w = Math.min(420, 36 + ctx.measureText(name.toUpperCase()).width);
       ctx.fillStyle = "rgba(8, 14, 12, 0.82)";
-      roundRect(ctx, 16, 16, w, 36, 5);
+      roundRect(ctx, x, y, w, 52, 6);
       ctx.fill();
       ctx.fillStyle = "#f4f1e8";
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
-      ctx.fillText(name.toUpperCase(), 26, 40);
+      ctx.fillText(name.toUpperCase(), x + 12, y + 34);
       return;
     }
     ctx.fillStyle = "rgba(8, 14, 12, 0.82)";
-    roundRect(ctx, 16, 16, 56, 56, 6);
+    roundRect(ctx, x, y, box, box, 8);
     ctx.fill();
-    drawContained(ctx, img, 20, 20, 48, 48);
+    drawContained(ctx, img, x + 8, y + 8, box - 16, box - 16);
     return;
   }
   const name = overlayBrandName(state);
   if (!name) return;
-  ctx.font = "700 14px sans-serif";
-  const w = Math.min(360, 28 + ctx.measureText(name.toUpperCase()).width);
+  ctx.font = "700 22px sans-serif";
+  const w = Math.min(420, 36 + ctx.measureText(name.toUpperCase()).width);
   ctx.fillStyle = "rgba(8, 14, 12, 0.82)";
-  roundRect(ctx, 16, 16, w, 36, 5);
+  roundRect(ctx, x, y, w, 52, 6);
   ctx.fill();
   ctx.fillStyle = "#f4f1e8";
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(name.toUpperCase(), 26, 40);
+  ctx.fillText(name.toUpperCase(), x + 12, y + 34);
 }
 
 function drawSponsorCorner(ctx: CanvasRenderingContext2D, state: CompactState, width: number) {
-  if (!state.graphics?.sponsor_on) return;
-  if (state.graphics.panel === "sponsor") return;
-  const url = state.graphics.sponsor_logo_url?.trim();
+  if (!showCornerSponsor(state.graphics)) return;
+  const urls = activeSponsors(state.graphics);
+  const url = urls[0]?.url;
   const img = overlayImage(url);
   if (!img) return;
-  const boxW = 140;
-  const boxH = 56;
+  const boxW = 220;
+  const boxH = 88;
+  const pos = state.graphics?.sponsor_pos ?? "top-right";
+  const x =
+    pos === "top-left" ? 16 : pos === "center" ? (width - boxW) / 2 : width - boxW - 16;
+  const y = pos === "bottom" ? ctx.canvas.height - boxH - 48 : 16;
   ctx.fillStyle = "rgba(8, 14, 12, 0.82)";
-  roundRect(ctx, width - boxW - 16, 16, boxW, boxH, 5);
+  roundRect(ctx, x, y, boxW, boxH, 6);
   ctx.fill();
-  drawContained(ctx, img, width - boxW - 12, 20, boxW - 8, boxH - 8);
+  drawContained(ctx, img, x + 8, y + 8, boxW - 16, boxH - 16);
 }
 
 function drawInfoCard(
@@ -371,12 +412,35 @@ function drawInfoCard(
   height: number,
 ) {
   const panel = frame.state?.graphics?.panel;
-  if (!panel || panel === "hidden" || panel === "live") return;
-  const scorecardish = panel === "scorecard" || panel === "innings1" || panel === "innings2";
-  const w = scorecardish ? Math.min(560, width * 0.58) : Math.min(360, width * 0.36);
-  const h = scorecardish ? Math.min(400, height * 0.5) : panel === "sponsor" ? 210 : 250;
-  const x = scorecardish ? (width - w) / 2 : width - w - 16;
-  const y = 52;
+  if (!panel || panel === "hidden" || panel === "live" || panel === "clean") return;
+  const scorecardish = panel === "scorecard" || panel === "innings1" || panel === "innings2" || panel === "summary";
+  const squad = panel === "squad";
+  const sponsor = panel === "sponsor";
+  const layout = frame.state?.graphics?.sponsor_layout;
+  const fullSponsor = sponsor && (layout === "fullscreen" || layout === "grid");
+  const chartish = panel === "worm" || panel === "runrate";
+  const w = squad
+    ? Math.min(width - 28, 980)
+    : chartish
+      ? Math.min(width - 36, 900)
+    : fullSponsor
+      ? Math.min(width - 48, 820)
+      : scorecardish
+        ? Math.min(560, width * 0.58)
+        : Math.min(360, width * 0.36);
+  const h = squad
+    ? Math.min(height * 0.68, 460)
+    : chartish
+      ? Math.min(height * 0.52, 340)
+    : fullSponsor
+      ? Math.min(height * 0.72, 520)
+      : scorecardish
+        ? Math.min(400, height * 0.5)
+        : sponsor
+          ? 240
+          : 250;
+  const x = squad || scorecardish || fullSponsor || chartish ? (width - w) / 2 : width - w - 16;
+  const y = squad || chartish ? 28 : 48;
   ctx.fillStyle = "rgba(8, 14, 12, 0.9)";
   roundRect(ctx, x, y, w, h, 6);
   ctx.fill();
@@ -389,17 +453,35 @@ function drawInfoCard(
   const titles: Record<string, string> = {
     scorecard: "SCORECARD",
     over: "OVER ANALYSIS",
+    worm: "WORM",
+    runrate: "RUN RATE",
     innings1: "1ST INNINGS",
     innings2: "2ND INNINGS",
     squad: "SQUADS",
     sponsor: "SPONSOR",
+    summary: "MATCH SUMMARY",
   };
   ctx.fillText(titles[panel] ?? panel.toUpperCase(), x + 16, y + 22);
 
   if (panel === "sponsor") {
-    const url = frame.state?.graphics?.sponsor_logo_url?.trim();
-    const img = overlayImage(url);
-    if (img) drawContained(ctx, img, x + 24, y + 40, w - 48, h - 60);
+    const urls = activeSponsors(frame.state?.graphics).map((item) => item.url);
+    if (urls.length === 0) return;
+    if (urls.length === 1 && layout !== "grid") {
+      const img = overlayImage(urls[0]);
+      if (img) drawContained(ctx, img, x + 24, y + 40, w - 48, h - 60);
+      return;
+    }
+    const cols = Math.min(3, urls.length);
+    const rows = Math.ceil(urls.length / cols);
+    const cellW = (w - 32) / cols;
+    const cellH = (h - 48) / rows;
+    urls.forEach((url, i) => {
+      const img = overlayImage(url);
+      if (!img) return;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      drawContained(ctx, img, x + 16 + col * cellW, y + 32 + row * cellH, cellW - 8, cellH - 8);
+    });
     return;
   }
 
@@ -428,19 +510,56 @@ function drawInfoCard(
     return;
   }
 
+  if (panel === "worm" || panel === "runrate") {
+    drawMatchChart(ctx, frame, x, y, w, h, panel);
+    return;
+  }
+
   if (panel === "squad") {
     const teams = frame.snapshot?.match?.teams;
     const list = teams ? [teams.a, teams.b] : [];
-    list.forEach((team) => {
+    const colW = (w - 28) / Math.max(list.length, 1);
+    list.forEach((team, ti) => {
+      const colX = x + 14 + ti * colW;
+      let lineY = y + 42;
       ctx.fillStyle = "#7dffb3";
-      ctx.fillText(team.name, x + 16, lineY);
+      ctx.font = "700 13px sans-serif";
+      ctx.fillText(team.name.slice(0, 22), colX, lineY);
       lineY += 18;
-      ctx.fillStyle = "#f4f1e8";
       const members = (frame.snapshot?.squads?.[team.id] ?? [])
         .filter((m) => m.is_playing)
-        .slice(0, 6);
-      ctx.fillText(members.map((m) => m.name.split(" ")[0]).join(", "), x + 16, lineY);
-      lineY += 22;
+        .slice(0, 11);
+      members.forEach((m) => {
+        const photo = overlayImage(m.photo_url);
+        if (photo) drawContained(ctx, photo, colX, lineY - 11, 16, 16);
+        else {
+          ctx.fillStyle = "rgba(125,255,179,0.2)";
+          roundRect(ctx, colX, lineY - 11, 16, 16, 3);
+          ctx.fill();
+        }
+        ctx.fillStyle = "#f4f1e8";
+        ctx.font = "600 12px sans-serif";
+        const jersey = m.jersey_number != null ? `#${m.jersey_number} ` : "";
+        ctx.fillText(`${jersey}${m.name}`.slice(0, 22), colX + 22, lineY);
+        lineY += 16;
+      });
+    });
+    return;
+  }
+
+  if (panel === "summary") {
+    const inns = frame.snapshot?.innings ?? [];
+    ctx.fillStyle = "#f4f1e8";
+    ctx.font = "700 16px sans-serif";
+    ctx.fillText(frame.state?.result_summary || frame.snapshot?.result?.summary || "Innings", x + 16, y + 48);
+    inns.slice(0, 2).forEach((inn, i) => {
+      ctx.font = "600 14px sans-serif";
+      ctx.fillStyle = "#c5d0c8";
+      ctx.fillText(
+        `${inn.batting_team_name}  ${inn.state.total_runs}/${inn.state.wickets}  (${inn.state.overs_text})`,
+        x + 16,
+        y + 78 + i * 24,
+      );
     });
     return;
   }
@@ -555,6 +674,70 @@ function drawInfoCard(
     });
   }
   ctx.textAlign = "left";
+}
+
+function drawMatchChart(
+  ctx: CanvasRenderingContext2D,
+  frame: OverlayPaintFrame,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  kind: "worm" | "runrate",
+) {
+  const series = matchChartSeries(frame.snapshot);
+  const padL = x + 44;
+  const padT = y + 36;
+  const padR = x + w - 16;
+  const padB = y + h - 22;
+  const innerW = Math.max(40, padR - padL);
+  const innerH = Math.max(40, padB - padT);
+  const maxOver = Math.max(10, ...series.flatMap((s) => s.points.map((p) => p.over)));
+  const valueOf = (p: { cumulative: number; runRate: number }) =>
+    kind === "worm" ? p.cumulative : p.runRate;
+  const maxY = Math.max(1, ...series.flatMap((s) => s.points.map(valueOf)));
+  const px = (over: number) => padL + (over / maxOver) * innerW;
+  const py = (v: number) => padT + innerH - (v / maxY) * innerH;
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, padB);
+  ctx.lineTo(padR, padB);
+  ctx.stroke();
+  ctx.fillStyle = "#93a08e";
+  ctx.font = "600 10px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("Overs", padL, y + h - 8);
+  series.forEach((s, si) => {
+    ctx.fillStyle = s.color;
+    ctx.fillText(s.label, padL + 50 + si * 120, y + 22);
+    if (s.points.length === 0) return;
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    s.points.forEach((p, i) => {
+      const xx = px(p.over);
+      const yy = py(valueOf(p));
+      if (i === 0) ctx.moveTo(xx, yy);
+      else ctx.lineTo(xx, yy);
+    });
+    ctx.stroke();
+    s.points.forEach((p) => {
+      const xx = px(p.over);
+      const yy = py(valueOf(p));
+      if (kind === "worm" && p.wickets > 0) {
+        ctx.fillStyle = "#e74c3c";
+        ctx.beginPath();
+        ctx.arc(xx, yy, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(xx, yy, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+  });
 }
 
 function drawScoreBar(
@@ -807,13 +990,18 @@ export function paintLiveOverlay(
     return;
   }
 
-  drawBrand(ctx, state);
-  drawSponsorCorner(ctx, state, width);
-  drawInfoCard(ctx, frame, width, height);
-  if (state.score) drawScoreBar(ctx, state, width, height);
-  const tickerOn = Boolean(state.graphics?.ticker_on);
-  const tickerText = state.graphics?.ticker?.trim() || frame.tickerFallback?.trim();
-  if (tickerOn && tickerText) {
+  const graphics = withEffectivePanel(state.graphics, state, now) ?? undefined;
+  const painted = { ...state, graphics };
+  if (isCleanCamera(graphics)) return;
+
+  if (showLogo(graphics)) drawBrand(ctx, painted);
+  drawSponsorCorner(ctx, painted, width);
+  if (isPresentationPanel(graphics?.panel) || graphics?.panel === "sponsor") {
+    drawInfoCard(ctx, { ...frame, state: painted }, width, height);
+  }
+  if (painted.score && showScoreBar(graphics)) drawScoreBar(ctx, painted, width, height);
+  const tickerText = graphics?.ticker?.trim() || frame.tickerFallback?.trim();
+  if (showTicker(graphics) && tickerText) {
     drawTicker(ctx, tickerText, height - 26, width, now - started);
   }
   if (graphicKind) drawGraphic(ctx, graphicKind, graphicAt, now, width, height);

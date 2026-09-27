@@ -231,12 +231,40 @@ class StreamSessionStatus(StrEnum):
     ERROR = "error"
 
 
+class BillingPlan(StrEnum):
+    FREE = "free"
+    LIVE_MATCH = "live_match"
+    PRO = "pro"
+    TOURNAMENT = "tournament"
+
+
+class CouponDiscountType(StrEnum):
+    PERCENT = "percent"
+    AMOUNT = "amount"
+
+
+class PaymentStatus(StrEnum):
+    PAID = "paid"
+    VOID = "void"
+
+
+class LiveUsageSource(StrEnum):
+    CREDIT = "credit"
+    PRO = "pro"
+    TOURNAMENT = "tournament"
+    ADMIN = "admin"
+
+
 class AuditAction(StrEnum):
     USER_REGISTERED = "user.registered"
     USER_LOGIN = "user.login"
     USER_LOGIN_FAILED = "user.login_failed"
     USER_LOGOUT = "user.logout"
     USER_PASSWORD_CHANGED = "user.password_changed"
+    USER_APPROVED = "user.approved"
+    USER_UNAPPROVED = "user.unapproved"
+    PAYMENT_RECORDED = "billing.payment_recorded"
+    PAYMENT_VOIDED = "billing.payment_voided"
     TOKEN_REUSE_DETECTED = "auth.token_reuse_detected"
     MATCH_CREATED = "match.created"
     MATCH_UPDATED = "match.updated"

@@ -39,6 +39,11 @@ async def get_current_user(request: Request, session: SessionDep, credentials: C
     ).scalar_one_or_none()
     if user is None or not user.is_active:
         raise Unauthorized("Your account is no longer active.", code="account_disabled")
+    if not user.is_approved and not user.is_admin:
+        raise Forbidden(
+            "This account is waiting for admin approval. You cannot log in yet.",
+            code="account_pending_approval",
+        )
 
     # An access token outlives an explicit sign-out by design (it is stateless and
     # short-lived), but a *revoked* session must stop working immediately, so the

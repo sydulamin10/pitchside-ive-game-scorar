@@ -24,7 +24,10 @@ export function Login() {
     setError(null);
     try {
       await login(email.trim(), password);
-      void navigate(destination, { replace: true });
+      const role = useAuth.getState().user?.role;
+      const next =
+        destination !== "/app" ? destination : role === "admin" ? "/app/admin" : "/app";
+      void navigate(next, { replace: true });
     } catch (cause) {
       setError(
         cause instanceof ApiError

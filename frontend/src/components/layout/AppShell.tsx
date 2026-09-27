@@ -28,13 +28,20 @@ export function AppShell() {
   const location = useLocation();
   const links = [
     ...LINKS,
-    ...(user?.role === "admin" ? [{ to: "/app/admin", label: "Admin" }] : []),
+    ...(user?.role === "admin"
+      ? [
+          { to: "/app/admin", label: "Admin Portal" },
+          { to: "/billing", label: "Billing Portal" },
+        ]
+      : []),
   ];
   // The drawer is remembered against the route it was opened on, so any
   // navigation closes it without an effect having to chase the location.
   const [menu, setMenu] = useState({ open: false, path: location.pathname });
   const menuOpen = menu.open && menu.path === location.pathname;
   const setMenuOpen = (open: boolean) => setMenu({ open, path: location.pathname });
+  const matchScoring = location.pathname.match(/^\/app\/matches\/([^/]+)/);
+  const scoringHref = matchScoring ? `/app/matches/${matchScoring[1]}` : "/app";
 
   const signOut = async () => {
     try {
@@ -104,6 +111,51 @@ export function AppShell() {
             </button>
           </div>
         </div>
+
+        {user?.role === "admin" ? (
+          <div className="mx-auto max-w-6xl px-4 pb-3">
+            <nav
+              aria-label="Admin portals"
+              className="grid grid-cols-3 gap-1 rounded-[4px] border border-pitch-line bg-pitch-deep p-1"
+            >
+              <NavLink
+                to={scoringHref}
+                className={() =>
+                  cn(
+                    "rounded-[3px] px-3 py-2 text-center font-sans text-sm font-semibold",
+                    location.pathname === "/app" || location.pathname.startsWith("/app/matches")
+                      ? "bg-flip/15 text-flip"
+                      : "text-willow-soft hover:bg-pitch-line hover:text-chalk",
+                  )
+                }
+              >
+                Scoring
+              </NavLink>
+              <NavLink
+                to="/app/admin"
+                className={({ isActive }) =>
+                  cn(
+                    "rounded-[3px] px-3 py-2 text-center font-sans text-sm font-semibold",
+                    isActive ? "bg-flip/15 text-flip" : "text-willow-soft hover:bg-pitch-line hover:text-chalk",
+                  )
+                }
+              >
+                Admin Portal
+              </NavLink>
+              <NavLink
+                to="/billing"
+                className={({ isActive }) =>
+                  cn(
+                    "rounded-[3px] px-3 py-2 text-center font-sans text-sm font-semibold",
+                    isActive ? "bg-flip/15 text-flip" : "text-willow-soft hover:bg-pitch-line hover:text-chalk",
+                  )
+                }
+              >
+                Billing Portal
+              </NavLink>
+            </nav>
+          </div>
+        ) : null}
 
         {menuOpen && (
           <nav aria-label="Main" className="border-t border-pitch-line px-4 pb-3 md:hidden">

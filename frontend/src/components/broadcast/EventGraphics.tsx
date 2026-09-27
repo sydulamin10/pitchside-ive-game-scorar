@@ -1,6 +1,9 @@
 /**
  * Full-screen event graphics for overlay, studio and external camera.
- * Driven by the latest ball in the compact SSE frame.
+ * Driven by the latest ball in the compact SSE frame, plus optional director cues.
+ *
+ * Each new event remounts the plate (`key={playKey}`) so a second 4/6/wicket
+ * always replays the CSS animation instead of sticking on the first run.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -12,13 +15,17 @@ import {
   GRAPHIC_WORDS,
   graphicHoldMs,
   latestGraphic,
+  parseGraphicCue,
   type GraphicKind,
 } from "@/lib/broadcast/eventKind";
+import { animationEnabled } from "@/lib/broadcast/overlayRules";
 import { cn } from "@/lib/utils";
 
 export function EventGraphics({ state }: { state: CompactState | null }) {
   const eventKey = useLastEventKey(state);
+  const cue = state?.graphics?.anim_cue ?? "";
   const [kind, setKind] = useState<GraphicKind>(null);
+  const [playKey, setPlayKey] = useState<string | null>(null);
   const [subtitle, setSubtitle] = useState<string | null>(null);
   const prevRuns = useRef<number | null>(null);
   const reduceMotion =
@@ -26,40 +33,54 @@ export function EventGraphics({ state }: { state: CompactState | null }) {
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  const lastPlayed = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!eventKey || !state?.recent_balls?.length) return;
-    const last = state.recent_balls[state.recent_balls.length - 1];
-    const next = latestGraphic(state, prevRuns.current);
+    if (!state) return;
+    const cueKey = cue ? `cue:${cue}` : "";
+    let next: GraphicKind = null;
+    let key: string | null = null;
     let sub: string | null = null;
 
-    if (next === "wicket" && (state.striker || last?.striker_name)) {
-      sub = last?.striker_name ?? state.striker?.name ?? null;
-    } else if ((next === "four" || next === "six") && state.striker) {
-      sub = `${state.striker.name} · ${state.striker.runs}(${state.striker.balls_faced})`;
-    } else if (next === "no_ball") {
-      sub = "No ball";
-    } else if (next === "wide") {
-      sub = "Wide";
+    if (eventKey && eventKey !== lastPlayed.current) {
+      key = eventKey;
+      next = latestGraphic(state, prevRuns.current);
+      const last = state.recent_balls?.[state.recent_balls.length - 1];
+      if (next === "wicket" && (state.striker || last?.striker_name)) {
+        sub = last?.striker_name ?? state.striker?.name ?? null;
+      } else if ((next === "four" || next === "six") && state.striker) {
+        sub = `${state.striker.name} · ${state.striker.runs}(${state.striker.balls_faced})`;
+      } else if (next === "no_ball") {
+        sub = "No ball";
+      } else if (next === "wide") {
+        sub = "Wide";
+      }
+      if (state.score) prevRuns.current = state.score.runs;
+    } else if (cueKey && cueKey !== lastPlayed.current) {
+      key = cueKey;
+      next = parseGraphicCue(cue);
     }
 
-    if (state.score) prevRuns.current = state.score.runs;
-    if (!next) return;
+    if (!key || !next || !animationEnabled(state.graphics, next)) return;
+    lastPlayed.current = key;
 
     const frame = window.requestAnimationFrame(() => {
       setKind(next);
+      setPlayKey(key);
       setSubtitle(sub);
     });
     const timer = window.setTimeout(() => {
       setKind(null);
+      setPlayKey(null);
       setSubtitle(null);
     }, graphicHoldMs(next, reduceMotion));
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(timer);
     };
-  }, [eventKey, state, reduceMotion]);
+  }, [eventKey, cue, state, reduceMotion]);
 
-  if (!kind) return null;
+  if (!kind || !playKey) return null;
 
   const digit = GRAPHIC_DIGITS[kind];
   const word = GRAPHIC_WORDS[kind];
@@ -71,6 +92,7 @@ export function EventGraphics({ state }: { state: CompactState | null }) {
   if (reduceMotion) {
     return (
       <div
+        key={playKey}
         className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-[38%] items-start justify-end p-3 sm:p-4"
         aria-live="polite"
       >
@@ -83,7 +105,7 @@ export function EventGraphics({ state }: { state: CompactState | null }) {
   }
 
   return (
-    <div className="gfx-stage" aria-live="polite">
+    <div key={playKey} className="gfx-stage" aria-live="polite">
       <div className={cn("gfx-wash", `gfx-wash--${kind}`)} />
       {boom ? <div className="gfx-ring" /> : null}
       {boom ? <div className="gfx-ring gfx-ring--late" /> : null}

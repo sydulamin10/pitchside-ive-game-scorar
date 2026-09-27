@@ -32,6 +32,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         enum_type(UserRole, "user_role"), nullable=False, default=UserRole.USER
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     failed_login_count: Mapped[int] = mapped_column(nullable=False, default=0)

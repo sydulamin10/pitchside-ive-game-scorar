@@ -35,6 +35,11 @@ async def create_session(
     payload: StreamSessionCreate,
 ) -> tuple[StreamSession, str]:
     await authorise_match(session, match_id, user, write=True)
+    match = await session.get(Match, match_id)
+    if match is not None:
+        from app.services import billing_service
+
+        await billing_service.assert_can_prepare_live(session, user, match)
     existing = await get_active_session(session, match_id)
     if existing is not None:
         raise Conflict(
@@ -296,6 +301,13 @@ async def go_live_public(
     match, row = await get_by_camera_token(session, slug=slug, token=token)
     if row.status is StreamSessionStatus.ENDED:
         raise BadRequest("Cannot go live on an ended session.", code="stream_ended")
+    from app.services import billing_service
+
+    owner = await session.get(User, match.created_by_user_id)
+    billed = owner or (await session.get(User, row.created_by_user_id))
+    if billed is not None:
+        await billing_service.assert_can_prepare_live(session, billed, match)
+        await billing_service.consume_live(session, billed, match)
     await _prepare_social_ingest(row, match)
     row.status = StreamSessionStatus.LIVE
     row.started_at = row.started_at or datetime.now(UTC)
@@ -362,6 +374,10 @@ async def go_live(session: AsyncSession, user: User, match_id: uuid.UUID) -> Str
         )
     ).unique().scalar_one_or_none()
     if match is not None:
+        from app.services import billing_service
+
+        await billing_service.assert_can_prepare_live(session, user, match)
+        await billing_service.consume_live(session, user, match)
         await _prepare_social_ingest(row, match)
     row.status = StreamSessionStatus.LIVE
     row.started_at = row.started_at or datetime.now(UTC)

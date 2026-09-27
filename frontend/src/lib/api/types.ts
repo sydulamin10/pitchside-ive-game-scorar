@@ -103,6 +103,7 @@ export interface User {
   display_name: string;
   role: "user" | "admin";
   is_email_verified: boolean;
+  is_approved?: boolean;
   timezone: string;
   created_at: string;
   last_login_at: string | null;
@@ -114,6 +115,110 @@ export interface TokenResponse {
   expires_in: number;
   refresh_token: string | null;
   user: User;
+}
+
+export type BillingPlanId = "free" | "live_match" | "pro" | "tournament";
+
+export interface BillingAccount {
+  id: string;
+  email: string;
+  display_name: string;
+  role: string;
+  is_approved: boolean;
+  is_active: boolean;
+  created_at: string;
+  last_login_at: string | null;
+  live_credits: number;
+  pro_until: string | null;
+  can_go_live: boolean;
+}
+
+export interface BillingPlanInfo {
+  id: BillingPlanId;
+  name: string;
+  price: string;
+  live: boolean;
+  unlimited: boolean;
+  credits?: number | null;
+  days?: number | null;
+  member_price?: string | null;
+}
+
+export interface BillingQuoteInput {
+  plan: BillingPlanId;
+  quantity?: number;
+  member_discount?: boolean;
+  coupon_code?: string | null;
+}
+
+export interface BillingQuote {
+  plan: BillingPlanId;
+  plan_name: string;
+  quantity: number;
+  list_amount: string;
+  member_discount: boolean;
+  coupon_code: string | null;
+  discount_amount: string;
+  paid_amount: string;
+  currency: string;
+  live_credits: number;
+  period_days: number | null;
+}
+
+export interface BillingPaymentInput {
+  user_id: string;
+  plan: BillingPlanId;
+  quantity?: number;
+  member_discount?: boolean;
+  coupon_code?: string | null;
+  paid_amount?: string | null;
+  tournament_id?: string | null;
+  note?: string | null;
+}
+
+export interface BillingPayment {
+  id: string;
+  user_id: string;
+  user_email?: string | null;
+  user_name?: string | null;
+  plan: BillingPlanId;
+  quantity: number;
+  list_amount: string;
+  member_discount: boolean;
+  discount_amount: string;
+  paid_amount: string;
+  currency: string;
+  status: "paid" | "void";
+  live_credits: number;
+  tournament_id?: string | null;
+  period_start?: string | null;
+  period_end?: string | null;
+  coupon_code?: string | null;
+  note?: string | null;
+  created_by_user_id: string;
+  created_at: string;
+}
+
+export interface BillingCouponInput {
+  code: string;
+  discount_type: "percent" | "amount";
+  discount_value: string;
+  max_uses?: number | null;
+  expires_at?: string | null;
+  note?: string | null;
+}
+
+export interface BillingCoupon {
+  id: string;
+  code: string;
+  discount_type: "percent" | "amount";
+  discount_value: string;
+  max_uses: number | null;
+  used_count: number;
+  expires_at: string | null;
+  is_active: boolean;
+  note: string | null;
+  created_at: string;
 }
 
 export interface SessionInfo {
@@ -425,6 +530,9 @@ export interface SquadMember {
   is_wicket_keeper: boolean;
   is_playing: boolean;
   is_substitute: boolean;
+  photo_url?: string | null;
+  jersey_number?: number | null;
+  role?: string | null;
 }
 
 export interface BatterCard {
@@ -663,6 +771,7 @@ export interface CompactState {
   current_partnership?: Partnership | null;
   recent_balls?: BallSummary[];
   result_summary?: string | null;
+  completed_at?: string | null;
   next_action?: NextAction;
   match_id?: string;
   graphics?: OverlayDirector;
@@ -675,10 +784,20 @@ export type OverlayPanel =
   | "innings2"
   | "squad"
   | "over"
+  | "worm"
+  | "runrate"
   | "sponsor"
-  | "hidden";
+  | "summary"
+  | "hidden"
+  | "clean";
 
 export type OverlayBrandMode = "none" | "name" | "logo";
+
+export interface OverlaySponsor {
+  id: string;
+  url: string;
+  on: boolean;
+}
 
 export interface OverlayDirector {
   panel: OverlayPanel;
@@ -691,6 +810,22 @@ export interface OverlayDirector {
   brand_logo_url?: string;
   sponsor_logo_url?: string;
   sponsor_on?: boolean;
+  sponsors?: OverlaySponsor[];
+  sponsor_layout?: "corner" | "grid" | "fullscreen";
+  scorebar_on?: boolean;
+  logo_on?: boolean;
+  player_card_on?: boolean;
+  anim_four?: boolean;
+  anim_six?: boolean;
+  anim_wicket?: boolean;
+  anim_extras?: boolean;
+  anim_cue?: string;
+  clean?: boolean;
+  scorebar_pos?: "top" | "center" | "bottom";
+  logo_pos?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  sponsor_pos?: "top-right" | "top-left" | "center" | "bottom" | "fullscreen";
+  deck_pos?: "top" | "center" | "bottom";
+  summary_until?: string | null;
 }
 
 export interface OverlayState {

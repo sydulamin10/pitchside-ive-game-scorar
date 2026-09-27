@@ -102,3 +102,17 @@ export function latestGraphic(state: CompactState | null, _prevRuns: number | nu
   if (next && !ON_AIR.has(next)) return null;
   return next;
 }
+
+/** Manual / replay cue stored on director state as `kind:nonce`. */
+export function parseGraphicCue(cue: string | null | undefined): GraphicKind {
+  if (!cue) return null;
+  const kind = cue.split(":")[0] as Exclude<GraphicKind, null>;
+  return ON_AIR.has(kind) ? kind : null;
+}
+
+export function graphicEventKey(state: CompactState | null): string | null {
+  const last = state?.recent_balls?.[state.recent_balls.length - 1];
+  if (!last) return null;
+  const id = last.delivery_id || last.over_ball_text || String(last.sequence ?? "");
+  return `${id}:${last.sequence}:${last.display}`;
+}

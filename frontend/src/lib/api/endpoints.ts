@@ -41,6 +41,14 @@ import type {
   MediaUploadUrl,
   PublicClubProfile,
   PublicPlayerProfile,
+  BillingAccount,
+  BillingCoupon,
+  BillingCouponInput,
+  BillingPayment,
+  BillingPaymentInput,
+  BillingPlanInfo,
+  BillingQuote,
+  BillingQuoteInput,
 } from "./types";
 
 // -------------------------------------------------------------------- auth
@@ -51,9 +59,18 @@ export const auth = {
     password: string;
     display_name: string;
     timezone?: string;
-  }): Promise<TokenResponse> {
-    const tokens = await api.post<TokenResponse>("/auth/register", input, { auth: false });
-    setSession(tokens);
+  }): Promise<TokenResponse | { pending_approval: true; message: string; user: User }> {
+    const tokens = await api.post<TokenResponse | { pending_approval: true; message: string; user: User }>(
+      "/auth/register",
+      input,
+      { auth: false },
+    );
+    if ("pending_approval" in tokens && tokens.pending_approval) {
+      return tokens;
+    }
+    if ("access_token" in tokens && tokens.access_token) {
+      setSession(tokens);
+    }
     return tokens;
   },
 
@@ -551,6 +568,25 @@ export const admin = {
   facebookSettings: () => api.get<FacebookAppSettings>("/admin/settings/facebook"),
   saveFacebookSettings: (input: { app_id: string; app_secret?: string | null }) =>
     api.put<FacebookAppSettings>("/admin/settings/facebook", input),
+};
+
+export const billing = {
+  users: (params: { q?: string; pending?: boolean; limit?: number; offset?: number } = {}) =>
+    api.get<BillingAccount[]>("/billing/users", { query: { ...params } }),
+  setApproval: (userId: string, is_approved: boolean) =>
+    api.patch<BillingAccount>(`/billing/users/${userId}/approval`, { is_approved }),
+  grantCredits: (userId: string, input: { credits: number; mode?: "add" | "set"; note?: string | null }) =>
+    api.post<BillingAccount>(`/billing/users/${userId}/credits`, input),
+  plans: () => api.get<BillingPlanInfo[]>("/billing/plans"),
+  quote: (input: BillingQuoteInput) => api.post<BillingQuote>("/billing/quote", input),
+  payments: (params: { user_id?: string; limit?: number; offset?: number } = {}) =>
+    api.get<BillingPayment[]>("/billing/payments", { query: { ...params } }),
+  recordPayment: (input: BillingPaymentInput) => api.post<BillingPayment>("/billing/payments", input),
+  voidPayment: (id: string) => api.post<BillingPayment>(`/billing/payments/${id}/void`, {}),
+  coupons: () => api.get<BillingCoupon[]>("/billing/coupons"),
+  createCoupon: (input: BillingCouponInput) => api.post<BillingCoupon>("/billing/coupons", input),
+  updateCoupon: (id: string, input: { is_active?: boolean; note?: string | null }) =>
+    api.patch<BillingCoupon>(`/billing/coupons/${id}`, input),
 };
 
 // ------------------------------------------------------------------- tools
