@@ -73,7 +73,7 @@ export function ScoreBoard({ state, title, live = false, className }: ScoreBoard
       className={cn("rounded-[3px] border border-pitch-line bg-pitch-deep", className)}
       aria-label="Scoreboard"
     >
-      <header className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3 pb-2">
+      <header className="flex flex-wrap items-center justify-between gap-2 px-3 pt-3 pb-2 sm:px-4">
         <div className="flex items-center gap-2">
           {live && <LiveDot />}
           <p className="font-sans text-xs tracking-[0.12em] text-willow-soft uppercase">
@@ -89,7 +89,7 @@ export function ScoreBoard({ state, title, live = false, className }: ScoreBoard
 
       <Seam />
 
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-4 px-4 py-4">
+      <div className="flex flex-wrap items-end gap-x-5 gap-y-3 px-3 py-3 sm:px-4 sm:py-4">
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
             {state.batting_team?.logo_url ? (
@@ -164,7 +164,7 @@ export function ScoreBoard({ state, title, live = false, className }: ScoreBoard
 
       <Seam />
 
-      <div className="grid gap-2 px-3 py-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 px-3 py-3 sm:grid-cols-3 sm:px-3">
         {[state.striker, state.non_striker].map((batter, index) =>
           batter ? (
             <div
@@ -212,7 +212,7 @@ export function ScoreBoard({ state, title, live = false, className }: ScoreBoard
         )}
 
         {state.bowler && (
-          <div className="flex items-center gap-2.5 rounded-[6px] border border-willow/20 bg-white/[0.03] px-2.5 py-2">
+          <div className="col-span-2 flex items-center gap-2.5 rounded-[6px] border border-willow/20 bg-white/[0.03] px-2.5 py-2 sm:col-span-1">
             {state.bowler.photo_url ? (
               <img
                 src={state.bowler.photo_url}
@@ -253,7 +253,11 @@ export function ScoreBoard({ state, title, live = false, className }: ScoreBoard
       {state.recent_balls?.length ? (
         <>
           <Seam />
-          <RecentBalls balls={state.recent_balls} className="px-4 py-3" />
+          <RecentBalls
+            balls={state.recent_balls}
+            className="px-3 py-2.5 sm:px-4 sm:py-3"
+            label={`This over ${state.recent_balls.at(-1)?.over_number ?? ""}`.trim()}
+          />
         </>
       ) : null}
     </section>

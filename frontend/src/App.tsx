@@ -153,6 +153,7 @@ export function App() {
             <Route path="tournaments/:tournamentId" element={<TournamentDetail />} />
             <Route path="tools" element={<ToolsPage initial="coin" />} />
             <Route path="account" element={<Account />} />
+            <Route path="pricing" element={<Pricing />} />
             <Route
               path="admin"
               element={

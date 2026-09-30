@@ -133,6 +133,14 @@ export interface BillingAccount {
   can_go_live: boolean;
 }
 
+export interface BillingEntitlement {
+  can_go_live: boolean;
+  live_credits: number;
+  pro_until: string | null;
+  tournament_ids: string[];
+  reason: string | null;
+}
+
 export interface BillingPlanInfo {
   id: BillingPlanId;
   name: string;

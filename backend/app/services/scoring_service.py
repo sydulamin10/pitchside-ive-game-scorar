@@ -926,7 +926,7 @@ async def _finalise(
     # innings that was just opened and the final match status.
     snapshot = await build_snapshot(session, match)
     if status_before is not MatchStatus.COMPLETED and match.status is MatchStatus.COMPLETED:
-        until = (match.completed_at or datetime.now(UTC)) + timedelta(seconds=60)
+        until = (match.completed_at or datetime.now(UTC)) + timedelta(seconds=45)
         await overlay_director.put(
             str(match.id),
             {

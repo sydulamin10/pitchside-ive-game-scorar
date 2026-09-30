@@ -1,3 +1,5 @@
+import { Menu, X } from "lucide-react";
+import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 
 import { Button } from "@/components/ui/Button";
@@ -53,6 +55,9 @@ export function PublicShell() {
   const signedIn = status === "authenticated";
   const location = useLocation();
   const showBack = location.pathname !== "/";
+  const [menu, setMenu] = useState({ open: false, path: location.pathname });
+  const menuOpen = menu.open && menu.path === location.pathname;
+  const setMenuOpen = (open: boolean) => setMenu({ open, path: location.pathname });
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -105,8 +110,53 @@ export function PublicShell() {
                 </Link>
               </>
             )}
+            <button
+              type="button"
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="tap rounded-[2px] border border-willow/50 px-2.5 text-chalk lg:hidden"
+            >
+              {menuOpen ? (
+                <X aria-hidden="true" className="size-5" />
+              ) : (
+                <Menu aria-hidden="true" className="size-5" />
+              )}
+            </button>
           </div>
         </div>
+        {menuOpen && (
+          <nav aria-label="Main" className="border-t border-pitch-line px-4 pb-3 lg:hidden">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  cn(
+                    "tap flex items-center rounded-[2px] px-3 py-2 font-sans text-sm",
+                    isActive ? "text-flip" : "text-willow-soft",
+                  )
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+            {!signedIn ? (
+              <Link
+                to="/login"
+                className="tap flex items-center rounded-[2px] px-3 py-2 font-sans text-sm text-willow-soft sm:hidden"
+              >
+                Log in
+              </Link>
+            ) : null}
+            <Link
+              to="/install"
+              className="tap flex items-center rounded-[2px] px-3 py-2 font-sans text-sm text-willow-soft sm:hidden"
+            >
+              Install app
+            </Link>
+          </nav>
+        )}
       </header>
 
       <main className="flex-1">

@@ -30,7 +30,11 @@ import {
   showTicker,
   sponsorPositionClass,
 } from "@/lib/broadcast/overlayRules";
-import { matchEndSummaryActive, withEffectivePanel } from "@/lib/broadcast/matchEndSummary";
+import {
+  matchEndAwardsActive,
+  matchEndSummaryActive,
+  withEffectivePanel,
+} from "@/lib/broadcast/matchEndSummary";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +43,10 @@ export default function Overlay() {
   const [params] = useSearchParams();
   const { state } = useMatchStream(slug, { pollMs: 2_000 });
   const [now, setNow] = useState(() => Date.now());
-  const ticking = matchEndSummaryActive(state) || Boolean(state?.graphics?.summary_until);
+  const ticking =
+    matchEndSummaryActive(state) ||
+    matchEndAwardsActive(state) ||
+    Boolean(state?.graphics?.summary_until);
   useEffect(() => {
     if (!ticking) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -52,7 +59,7 @@ export default function Overlay() {
   const directorPanel = graphics?.panel ?? "hidden";
   const design = parseOverlayDesign(graphics?.design ?? params.get("design") ?? params.get("style"));
   const showCharts = params.get("charts") === "1";
-  const showAwards = params.get("awards") === "1" || state?.status === "completed";
+  const showAwards = params.get("awards") === "1" || matchEndAwardsActive(state, now);
   const showCard = params.get("card") !== "0" && showPlayerCard(graphics);
   const deck = directorDeckPanel(directorPanel);
   const showDeck = Boolean(deck) && !isCleanCamera(graphics);

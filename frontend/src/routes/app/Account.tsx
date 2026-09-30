@@ -8,13 +8,14 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router";
 
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
 import { Badge, Panel, Seam, SectionTitle, Spinner } from "@/components/ui/Surface";
 import { InstallAppButton } from "@/components/layout/InstallAppButton";
 import { ApiError } from "@/lib/api/client";
-import { auth } from "@/lib/api/endpoints";
+import { auth, billing } from "@/lib/api/endpoints";
 import { formatDateTime, relativeTime } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 import { toast, toastError } from "@/store/toast";
@@ -29,6 +30,10 @@ export default function Account() {
   const [error, setError] = useState<string | undefined>();
 
   const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => auth.sessions() });
+  const entitlement = useQuery({
+    queryKey: ["billing-entitlement"],
+    queryFn: () => billing.entitlement(),
+  });
 
   const changePassword = useMutation({
     mutationFn: () => auth.changePassword({ current_password: current, new_password: next }),
@@ -62,6 +67,40 @@ export default function Account() {
           {user?.display_name} · {user?.email}
         </p>
       </header>
+
+      <Panel className="flex flex-col">
+        <div className="px-4 py-3">
+          <SectionTitle>Live broadcast</SectionTitle>
+          <p className="pt-1 font-sans text-xs text-willow">
+            Scoring is free. Going live uses one credit per match, or a Pro / tournament plan.
+          </p>
+        </div>
+        <Seam />
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
+          <div>
+            {user?.role === "admin" ? (
+              <p className="font-sans text-sm text-chalk">Admin accounts are unlimited.</p>
+            ) : entitlement.data?.pro_until ? (
+              <p className="font-sans text-sm text-chalk">
+                Pro until {new Date(entitlement.data.pro_until).toLocaleDateString()}
+              </p>
+            ) : (
+              <p className="font-sans text-sm text-chalk">
+                <span className="tabular font-semibold">{entitlement.data?.live_credits ?? "—"}</span>{" "}
+                live match credit{(entitlement.data?.live_credits ?? 0) === 1 ? "" : "s"}
+              </p>
+            )}
+            {entitlement.data?.reason ? (
+              <p className="pt-1 font-sans text-xs text-willow-soft">{entitlement.data.reason}</p>
+            ) : null}
+          </div>
+          <Link to="/app/pricing">
+            <Button size="sm" variant="secondary">
+              Pricing
+            </Button>
+          </Link>
+        </div>
+      </Panel>
 
       <Panel className="flex flex-col">
         <div className="px-4 py-3">

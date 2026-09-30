@@ -17,6 +17,7 @@ const LINKS = [
   { to: "/app", label: "Matches", end: true },
   { to: "/app/tournaments", label: "Tournaments" },
   { to: "/app/teams", label: "Teams" },
+  { to: "/app/pricing", label: "Pricing" },
   { to: "/app/tools", label: "Toss tools" },
   { to: "/app/account", label: "Account" },
 ];
@@ -42,6 +43,7 @@ export function AppShell() {
   const setMenuOpen = (open: boolean) => setMenu({ open, path: location.pathname });
   const matchScoring = location.pathname.match(/^\/app\/matches\/([^/]+)/);
   const scoringHref = matchScoring ? `/app/matches/${matchScoring[1]}` : "/app";
+  const scoringScreen = Boolean(matchScoring);
 
   const signOut = async () => {
     try {
@@ -112,7 +114,7 @@ export function AppShell() {
           </div>
         </div>
 
-        {user?.role === "admin" ? (
+        {user?.role === "admin" && !scoringScreen ? (
           <div className="mx-auto max-w-6xl px-4 pb-3">
             <nav
               aria-label="Admin portals"
@@ -190,10 +192,16 @@ export function AppShell() {
 
       <ConnectionBanner />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+      <main
+        className={cn(
+          "mx-auto w-full max-w-6xl flex-1",
+          scoringScreen ? "px-3 py-3 sm:px-4 sm:py-4" : "px-4 py-6",
+        )}
+      >
         <Outlet />
       </main>
 
+      {scoringScreen ? null : (
       <footer className="mt-8">
         <Seam />
         <p className="mx-auto max-w-6xl px-4 py-4 font-sans text-xs text-willow">
@@ -201,6 +209,7 @@ export function AppShell() {
           and the numbers after it correct themselves.
         </p>
       </footer>
+      )}
     </div>
   );
 }

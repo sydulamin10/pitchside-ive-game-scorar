@@ -35,17 +35,20 @@ async def create_session(
     payload: StreamSessionCreate,
 ) -> tuple[StreamSession, str]:
     await authorise_match(session, match_id, user, write=True)
-    match = await session.get(Match, match_id)
-    if match is not None:
-        from app.services import billing_service
-
-        await billing_service.assert_can_prepare_live(session, user, match)
     existing = await get_active_session(session, match_id)
     if existing is not None:
         raise Conflict(
             "This match already has an active stream session.",
             code="stream_session_active",
         )
+    match = await session.get(Match, match_id)
+    if match is not None:
+        from app.services import billing_service
+
+        # One live match credit is reserved here — not later at Go Live — so a
+        # user with 1 credit cannot open live sessions on several matches.
+        await billing_service.assert_can_prepare_live(session, user, match)
+        await billing_service.consume_live(session, user, match)
 
     stream_key = payload.stream_key or secrets.token_urlsafe(18)
     whip_path = payload.whip_path or f"pitchside/{match_id.hex[:12]}"

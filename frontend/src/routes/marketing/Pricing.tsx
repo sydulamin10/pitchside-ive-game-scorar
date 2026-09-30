@@ -191,7 +191,7 @@ export default function Pricing() {
       <section className="mx-auto max-w-6xl px-4 py-10">
         <H2>Quick comparison</H2>
         <div className="mt-4 overflow-x-auto rounded-[4px] border border-pitch-line">
-          <table className="w-full min-w-[40rem] border-collapse text-left font-sans text-sm">
+          <table className="w-full min-w-[36rem] border-collapse text-left font-sans text-sm sm:min-w-[40rem]">
             <thead>
               <tr className="bg-pitch-deep text-willow-soft">
                 <th className="px-3 py-2 font-semibold">Feature</th>

@@ -10,7 +10,6 @@ import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { OverlayDirectorPanel } from "@/components/broadcast/OverlayDirectorPanel";
-import { HistoryBackButton } from "@/components/layout/HistoryBackButton";
 import { Drawer, DrawerHandle } from "@/components/ui/Drawer";
 
 import { ScoreBoard } from "@/components/board/ScoreBoard";
@@ -151,23 +150,11 @@ export default function ScoringConsole() {
   const editingEntry = ctl.log.find((entry) => entry.id === editingId) ?? null;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3 sm:gap-4">
       <DrawerHandle onClick={() => setDrawerOpen(true)} label="Open scoring options" />
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2.5">
-          <HistoryBackButton className="mt-0.5 shrink-0" />
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open scoring options"
-            className="mt-0.5 flex size-9 shrink-0 flex-col items-center justify-center gap-1 rounded-[3px] border border-willow/40 text-willow-soft hover:border-flip/60 hover:text-flip"
-          >
-            <span aria-hidden="true" className="block h-0.5 w-4 rounded-full bg-current" />
-            <span aria-hidden="true" className="block h-0.5 w-4 rounded-full bg-current" />
-            <span aria-hidden="true" className="block h-0.5 w-4 rounded-full bg-current" />
-          </button>
-          <div className="min-w-0">
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="font-sans text-lg font-semibold text-chalk">{match.title}</h1>
           <p className="flex flex-wrap items-center gap-2 pt-1 font-sans text-xs text-willow">
             {match.venue && <span>{match.venue}</span>}
@@ -184,9 +171,8 @@ export default function ScoringConsole() {
             {ctl.fromCache && <Badge tone="quiet">From this device</Badge>}
             {ctl.isProjected && <Badge tone="live">Unsynced balls included</Badge>}
           </p>
-          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="hidden flex-wrap justify-end gap-2 sm:flex">
           <Button
             size="sm"
             variant="ghost"
@@ -245,14 +231,14 @@ export default function ScoringConsole() {
               </Button>
             ))}
           </nav>
-          <p className="font-sans text-[0.7rem] text-willow-soft">
+          <p className="hidden font-sans text-[0.7rem] text-willow-soft md:block">
             {TABS.find(([value]) => value === tab)?.[1]} — open the menu on the left for the
             scorecard, both innings and the live deck. On a PC the same menu is available.
           </p>
 
           {tab === "pad" && (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-              <Panel className="order-1">
+              <Panel className="order-1 overflow-hidden">
                 {state?.is_complete ? (
                   <EmptyState
                     title="This innings is done"
@@ -282,7 +268,7 @@ export default function ScoringConsole() {
                 )}
               </Panel>
 
-              <div className="order-2 flex flex-col gap-4">
+              <div className="order-2 hidden flex-col gap-4 lg:flex">
                 <CreasePanel
                   innings={innings}
                   bowlingSquad={bowlingSquad}
@@ -424,6 +410,50 @@ export default function ScoringConsole() {
             </button>
           ))}
         </div>
+        <div className="flex flex-col gap-2 lg:hidden">
+          <Link to={`/app/matches/${match.id}/broadcast`}>
+            <Button size="sm" variant="secondary" fullWidth>
+              Go Live
+            </Button>
+          </Link>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              void copyToClipboard(match.share_url).then((ok) =>
+                toast(ok ? "Share link copied." : match.share_url, ok ? "success" : "info"),
+              )
+            }
+          >
+            Copy share link
+          </Button>
+          <a href={`/s/${match.slug}`} target="_blank" rel="noreferrer">
+            <Button size="sm" variant="ghost" fullWidth>
+              Open scorecard
+            </Button>
+          </a>
+        </div>
+        {innings ? (
+          <>
+            <Seam className="my-3 lg:hidden" />
+            <div className="lg:hidden">
+              <CreasePanel
+                innings={innings}
+                bowlingSquad={bowlingSquad}
+                selection={{ strikerId, nonStrikerId, bowlerId }}
+                onChange={(patch) => setSelection((current) => ({ ...current, ...patch }))}
+                onChangeBowler={(id) => void ctl.changeBowler(id)}
+                onSwapEnds={() => void ctl.swapEnds()}
+                busy={ctl.busy}
+              />
+              <div className="pt-3">
+                <Button size="sm" variant="ghost" onClick={() => setClosing(true)}>
+                  Close this innings
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : null}
         <Seam className="my-3" />
         <OverlayDirectorPanel matchId={match.id} graphics={ctl.graphics} />
       </Drawer>

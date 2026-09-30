@@ -7,7 +7,7 @@ import { useAuth } from "@/store/auth";
 import { StumpsMark } from "@/components/layout/Brand";
 import { Button } from "@/components/ui/Button";
 import { Badge, EmptyState, Panel, Seam, SectionTitle, Spinner } from "@/components/ui/Surface";
-import { matches } from "@/lib/api/endpoints";
+import { billing, matches } from "@/lib/api/endpoints";
 import type { MatchListItem, MatchStatus } from "@/lib/api/types";
 import { MATCH_FORMAT_LABELS } from "@/lib/api/types";
 import { copyToClipboard, formatDateTime } from "@/lib/utils";
@@ -94,6 +94,10 @@ export default function Dashboard() {
     queryKey: ["matches"],
     queryFn: () => matches.list({ limit: 50 }),
   });
+  const entitlement = useQuery({
+    queryKey: ["billing-entitlement"],
+    queryFn: () => billing.entitlement(),
+  });
 
   const live = data?.filter((m) => m.status === "live" || m.status === "innings_break") ?? [];
   const upcoming = data?.filter((m) => m.status === "setup") ?? [];
@@ -109,12 +113,25 @@ export default function Dashboard() {
             Everything you score or have been invited to score.
           </p>
         </div>
-        <Link to="/app/matches/new">
-          <Button size="lg">
-            <Plus aria-hidden="true" className="size-4" />
-            New match
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/app/pricing">
+            <Button size="sm" variant="ghost">
+              {user?.role === "admin"
+                ? "Pricing"
+                : entitlement.data?.pro_until
+                  ? "Pro · Pricing"
+                  : `${entitlement.data?.live_credits ?? 0} live credit${
+                      (entitlement.data?.live_credits ?? 0) === 1 ? "" : "s"
+                    }`}
+            </Button>
+          </Link>
+          <Link to="/app/matches/new">
+            <Button size="lg">
+              <Plus aria-hidden="true" className="size-4" />
+              New match
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {user?.role === "admin" ? (

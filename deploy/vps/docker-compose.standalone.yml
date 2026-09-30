@@ -1,0 +1,73 @@
+# Self-contained ODCC LIVE stack for a dedicated VPS (no CBG nginx).
+name: odcc
+
+services:
+  api:
+    build:
+      context: ./backend
+    image: odcc-api:latest
+    container_name: odcc-api
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      PORT: "8000"
+    volumes:
+      - ./media:/app/media
+    ports:
+      - "127.0.0.1:8100:8000"
+    networks:
+      proxy:
+        aliases:
+          - odcc-api
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: odcc-mediamtx
+    restart: unless-stopped
+    volumes:
+      - ./deploy/mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "8189:8189/udp"
+      - "8189:8189/tcp"
+      - "1935:1935"
+    networks:
+      proxy:
+        aliases:
+          - odcc-mediamtx
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: odcc-nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+      - mediamtx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.standalone.conf:/etc/nginx/conf.d/default.conf:ro
+      - /opt/odcc-web/dist:/usr/share/nginx/odcc-live:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot
+    networks:
+      proxy:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  proxy:
+    name: odcc_proxy

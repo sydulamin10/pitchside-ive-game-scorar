@@ -1,0 +1,27 @@
+logLevel: info
+logDestinations: [stdout]
+
+rtsp: yes
+rtspAddress: :8554
+rtmp: yes
+rtmpAddress: :1935
+hls: no
+srt: no
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: no
+webrtcAllowOrigins: ["*"]
+webrtcTrustedProxies: [172.16.0.0/12, 10.0.0.0/8, 192.168.0.0/16, 127.0.0.1]
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+webrtcIPsFromInterfaces: yes
+webrtcAdditionalHosts: [13.140.56.201]
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+
+pathDefaults:
+  source: publisher
+
+paths:
+  all_others:

@@ -337,7 +337,10 @@ async def entitlement_for(session: AsyncSession, user: User) -> Entitlement:
         can = False
         reason = "This account is waiting for admin approval."
     elif not can:
-        reason = "Ask an admin to add live credits or record a payment."
+        reason = (
+            "This account has no live match credits left. One credit starts one live match, "
+            "or pay for Pro / a tournament package."
+        )
     return Entitlement(
         can_go_live=can,
         live_credits=remaining,
@@ -372,7 +375,7 @@ async def assert_can_prepare_live(session: AsyncSession, user: User, match: Matc
         return entitlement
     raise Forbidden(
         entitlement.reason
-        or "This account cannot go live until a broadcast plan is paid.",
+        or "This account has no live match credits left. One credit starts one live match.",
         code="live_not_entitled",
         details=entitlement.to_dict(),
     )
@@ -425,7 +428,8 @@ async def consume_live(session: AsyncSession, user: User, match: Match) -> LiveU
         payment_id = payment.id if payment else None
     else:
         raise Forbidden(
-            entitlement.reason or "This account cannot go live until a broadcast plan is paid.",
+            entitlement.reason
+            or "This account has no live match credits left. One credit starts one live match.",
             code="live_not_entitled",
             details=entitlement.to_dict(),
         )

@@ -87,9 +87,9 @@ export default function BillingAdmin() {
 
       <main className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6">
         <p className="font-sans text-sm text-willow-soft">
-          Plans follow the public pricing page: scoring is free; live broadcast is $1.20 per match
-          (member $0.90), Pro is $9.99/month unlimited, tournament package is $15.99. Coupons can
-          cut any amount.
+          Plans follow the public pricing page: scoring is free; one live credit starts one live
+          match ($1.20, member $0.90). Pro is $9.99/month unlimited. Tournament package is $15.99
+          for that cup. Admins are never limited. Coupons can cut any amount.
         </p>
         {tab === "approvals" ? <AccountControls pendingOnly /> : null}
         {tab === "accounts" ? <AccountControls /> : null}

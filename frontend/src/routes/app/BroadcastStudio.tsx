@@ -32,6 +32,7 @@ import { HistoryBackButton } from "@/components/layout/HistoryBackButton";
 import { Button } from "@/components/ui/Button";
 import { SelectField, TextField } from "@/components/ui/Field";
 import { Panel, Seam, SectionTitle, Spinner } from "@/components/ui/Surface";
+import { ApiError } from "@/lib/api/client";
 import { broadcast as broadcastApi, matches as matchesApi, publicApi } from "@/lib/api/endpoints";
 import type { CompactState, MatchSnapshot } from "@/lib/api/types";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
@@ -412,9 +413,21 @@ export default function BroadcastStudio() {
 
           {sessionQuery.isLoading && <Spinner label="Preparing camera session" />}
           {sessionQuery.isError && (
-            <p className="rounded-[3px] border border-boundary/40 px-3 py-2 font-sans text-sm text-boundary">
-              Could not create a stream session. Check API access, then retry.
-            </p>
+            <div className="rounded-[3px] border border-boundary/40 px-3 py-3">
+              <p className="font-sans text-sm text-boundary">
+                {sessionQuery.error instanceof ApiError
+                  ? sessionQuery.error.message
+                  : "Could not create a stream session. Check API access, then retry."}
+              </p>
+              {sessionQuery.error instanceof ApiError &&
+              sessionQuery.error.code === "live_not_entitled" ? (
+                <Link to="/app/pricing" className="mt-2 inline-block">
+                  <Button size="sm" variant="secondary">
+                    See pricing
+                  </Button>
+                </Link>
+              ) : null}
+            </div>
           )}
 
           {cameraUrl && (

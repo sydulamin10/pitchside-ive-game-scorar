@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { ExtraType, InningsSnapshot } from "@/lib/api/types";
 import { Button } from "@/components/ui/Button";
-import { Badge, Seam, SectionTitle } from "@/components/ui/Surface";
+import { Badge } from "@/components/ui/Surface";
 import { cn } from "@/lib/utils";
 
 export interface BallDraft {
@@ -146,53 +146,94 @@ export function ScorePad({
 
   return (
     <section aria-label="Scoring pad" className="flex flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <SectionTitle>{runsMeaning(mode, byesOffNoBall)}</SectionTitle>
-          {freeHit && <Badge tone="live">Free hit</Badge>}
+      <div className="flex items-end justify-between gap-2 px-3 pt-3 pb-2 sm:px-4">
+        <div>
+          <p className="font-sans text-[0.65rem] font-bold tracking-[0.16em] text-willow uppercase">
+            {runsMeaning(mode, byesOffNoBall)}
+          </p>
+          {freeHit && (
+            <p className="pt-1">
+              <Badge tone="live">Free hit</Badge>
+            </p>
+          )}
         </div>
         {striker && (
-          <p className="font-sans text-xs text-willow">
+          <p className="font-sans text-[0.65rem] text-willow">
             on strike: <span className="text-chalk">{striker.name}</span>
           </p>
         )}
       </div>
 
-      <div className="grid grid-cols-4 gap-2 px-4 pb-3 sm:grid-cols-7">
-        {RUNS.map((runs) => (
+      <div className="grid grid-cols-4 gap-2 px-3 sm:px-4">
+        {RUNS.slice(0, 4).map((runs) => (
           <Button
             key={runs}
-            variant={runs === 4 || runs === 6 ? "primary" : "flap"}
+            variant="flap"
             size="lg"
             disabled={disabled || busy}
             onClick={() => submit(runs)}
-            className="h-16 text-2xl"
+            className="h-[3.35rem] text-xl sm:h-16 sm:text-2xl"
             aria-label={`${runs} ${runs === 1 ? "run" : "runs"}`}
           >
             {runs}
           </Button>
         ))}
       </div>
+      <div className="mt-2 grid grid-cols-3 gap-2 px-3 pb-3 sm:px-4">
+        <Button
+          variant="secondary"
+          size="lg"
+          disabled={disabled || busy}
+          onClick={() => submit(4)}
+          className="h-[3.35rem] text-xl sm:h-16 sm:text-2xl"
+          aria-label="4 runs"
+        >
+          4
+        </Button>
+        <Button
+          variant="flap"
+          size="lg"
+          disabled={disabled || busy}
+          onClick={() => submit(5)}
+          className="h-[3.35rem] text-xl sm:h-16 sm:text-2xl"
+          aria-label="5 runs"
+        >
+          5
+        </Button>
+        <Button
+          variant="primary"
+          size="lg"
+          disabled={disabled || busy}
+          onClick={() => submit(6)}
+          className="h-[3.35rem] text-xl sm:h-16 sm:text-2xl"
+          aria-label="6 runs"
+        >
+          6
+        </Button>
+      </div>
 
-      <Seam />
-
-      <div className="flex flex-wrap gap-2 px-4 py-3">
+      <div className="flex flex-wrap gap-2 px-3 pb-3 sm:px-4">
         {MODES.map((entry) => (
-          <Button
+          <button
             key={entry.label}
-            size="sm"
-            variant={mode === entry.value ? "secondary" : "ghost"}
+            type="button"
             disabled={disabled}
             onClick={() => setMode(entry.value)}
             aria-pressed={mode === entry.value}
+            className={cn(
+              "tap min-h-9 rounded-[4px] border px-3 font-sans text-[0.72rem] font-semibold",
+              mode === entry.value
+                ? "border-chalk bg-chalk text-ink"
+                : "border-willow/45 bg-transparent text-chalk hover:border-chalk",
+            )}
           >
             {entry.label}
-          </Button>
+          </button>
         ))}
       </div>
 
       {(showBoundaryToggle || mode === "no_ball") && (
-        <div className="flex flex-wrap gap-4 px-4 pb-3">
+        <div className="flex flex-wrap gap-4 px-3 pb-3 sm:px-4">
           {showBoundaryToggle && (
             <label className="tap flex items-center gap-2 font-sans text-xs text-chalk">
               <input
@@ -218,9 +259,7 @@ export function ScorePad({
         </div>
       )}
 
-      <Seam />
-
-      <div className="flex flex-wrap gap-2 px-4 py-3">
+      <div className="flex flex-wrap gap-2 px-3 py-3 sm:px-4">
         <Button variant="danger" disabled={disabled} onClick={onWicket}>
           Wicket
         </Button>

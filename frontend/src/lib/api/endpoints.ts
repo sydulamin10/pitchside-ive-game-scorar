@@ -44,6 +44,7 @@ import type {
   BillingAccount,
   BillingCoupon,
   BillingCouponInput,
+  BillingEntitlement,
   BillingPayment,
   BillingPaymentInput,
   BillingPlanInfo,
@@ -571,6 +572,7 @@ export const admin = {
 };
 
 export const billing = {
+  entitlement: () => api.get<BillingEntitlement>("/billing/entitlement"),
   users: (params: { q?: string; pending?: boolean; limit?: number; offset?: number } = {}) =>
     api.get<BillingAccount[]>("/billing/users", { query: { ...params } }),
   setApproval: (userId: string, is_approved: boolean) =>

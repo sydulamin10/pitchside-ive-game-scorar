@@ -65,7 +65,8 @@ export function AccountControls({ pendingOnly = false }: { pendingOnly?: boolean
     <Panel className="p-5">
       <SectionTitle>{pendingOnly ? "Waiting for approval" : "Accounts, approval and live credits"}</SectionTitle>
       <p className="mt-2 font-sans text-xs text-willow-soft">
-        Approval on lets them log in. Live count is the credits you add, or a payment you record.
+        Approval on lets them log in. One live credit starts one live match (same as $1.20 /
+        match). Pro or a tournament payment unlocks that plan instead. Admins are never limited.
         Approval off kicks them out and they cannot go live.
       </p>
       {!pendingOnly ? (
@@ -140,7 +141,13 @@ function AccountRow({
       <td className="py-3">
         <p className="tabular font-semibold">{isAdmin ? "Unlimited" : row.live_credits}</p>
         <p className="text-xs text-willow-soft">
-          {isAdmin ? "Admin" : row.can_go_live ? "Can go live" : "Cannot go live"}
+          {isAdmin
+            ? "Admin · unlimited live"
+            : row.pro_until
+              ? "Pro · unlimited while active"
+              : row.can_go_live
+                ? `${row.live_credits} match${row.live_credits === 1 ? "" : "es"} left`
+                : "Cannot go live"}
         </p>
       </td>
       <td className="py-3">
