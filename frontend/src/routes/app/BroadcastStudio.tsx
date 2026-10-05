@@ -34,6 +34,7 @@ import { SelectField, TextField } from "@/components/ui/Field";
 import { Panel, Seam, SectionTitle, Spinner } from "@/components/ui/Surface";
 import { ApiError } from "@/lib/api/client";
 import { broadcast as broadcastApi, matches as matchesApi, publicApi } from "@/lib/api/endpoints";
+import { useCanGoLive } from "@/lib/liveAccess";
 import type { CompactState, MatchSnapshot } from "@/lib/api/types";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
 import { copyToClipboard } from "@/lib/utils";
@@ -106,6 +107,8 @@ export default function BroadcastStudio() {
   const [showObsAdvanced, setShowObsAdvanced] = useState(false);
   const { active: infoPanels, onToggle: toggleInfo } = useLiveInfoPanels();
 
+  const liveAccess = useCanGoLive(matchId);
+
   const matchQuery = useQuery({
     queryKey: ["match", matchId],
     queryFn: () => matchesApi.get(matchId!),
@@ -115,7 +118,7 @@ export default function BroadcastStudio() {
   const sessionQuery = useQuery({
     queryKey: ["stream-session", matchId],
     queryFn: () => broadcastApi.ensure(matchId!),
-    enabled: Boolean(matchId),
+    enabled: Boolean(matchId) && liveAccess.ready && liveAccess.allowed && !liveAccess.hasSession,
     retry: 1,
   });
 
@@ -148,7 +151,7 @@ export default function BroadcastStudio() {
   });
   overlayStateRef.current = state ?? null;
   snapshotRef.current = scorecard.data ?? null;
-  const session = sessionQuery.data;
+  const session = liveAccess.active.data ?? sessionQuery.data;
 
   useEffect(() => {
     if (!state?.graphics?.design) return;
@@ -260,8 +263,11 @@ export default function BroadcastStudio() {
     void stopCamera();
   }, [stopCamera]);
 
-  const invalidate = () =>
+  const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["stream-session", matchId] });
+    void queryClient.invalidateQueries({ queryKey: ["stream-session-active", matchId] });
+    void queryClient.invalidateQueries({ queryKey: ["billing-entitlement"] });
+  };
 
   const saveDestinations = useMutation({
     mutationFn: async () => {
@@ -378,6 +384,18 @@ export default function BroadcastStudio() {
         </div>
       </header>
 
+      {liveAccess.locked ? (
+        <Panel className="p-4">
+          <p className="font-sans text-sm font-semibold text-chalk">Go Live is unavailable</p>
+          <p className="mt-1 font-sans text-xs text-willow">{liveAccess.reason}</p>
+          <Link to="/app/pricing" className="mt-3 inline-block">
+            <Button size="sm" variant="secondary">
+              See pricing
+            </Button>
+          </Link>
+        </Panel>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {(
           [
@@ -411,6 +429,14 @@ export default function BroadcastStudio() {
             Turn the phone sideways for a full-screen scorecard.
           </p>
 
+          {liveAccess.locked ? (
+            <p className="font-sans text-sm text-willow">
+              Unlock Go Live with a live match credit, then the camera QR will appear here.
+            </p>
+          ) : null}
+          {!liveAccess.ready && !liveAccess.locked && (
+            <Spinner label="Checking live access" />
+          )}
           {sessionQuery.isLoading && <Spinner label="Preparing camera session" />}
           {sessionQuery.isError && (
             <div className="rounded-[3px] border border-boundary/40 px-3 py-3">
@@ -867,7 +893,12 @@ export default function BroadcastStudio() {
                           Save destination
                         </Button>
                       )}
-                      <Button onClick={() => goLive.mutate()} loading={goLive.isPending}>
+                      <Button
+                        onClick={() => goLive.mutate()}
+                        loading={goLive.isPending}
+                        disabled={liveAccess.locked}
+                        title={liveAccess.locked ? liveAccess.reason : undefined}
+                      >
                         Go live
                       </Button>
                     </>

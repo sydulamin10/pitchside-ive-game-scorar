@@ -9,6 +9,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
+import { GoLiveButton } from "@/components/broadcast/GoLiveButton";
 import { OverlayDirectorPanel } from "@/components/broadcast/OverlayDirectorPanel";
 import { Drawer, DrawerHandle } from "@/components/ui/Drawer";
 
@@ -189,11 +190,7 @@ export default function ScoringConsole() {
               Open scorecard
             </Button>
           </a>
-          <Link to={`/app/matches/${match.id}/broadcast`}>
-            <Button size="sm" variant="secondary">
-              Go Live
-            </Button>
-          </Link>
+          <GoLiveButton matchId={match.id} />
         </div>
       </header>
 
@@ -411,11 +408,7 @@ export default function ScoringConsole() {
           ))}
         </div>
         <div className="flex flex-col gap-2 lg:hidden">
-          <Link to={`/app/matches/${match.id}/broadcast`}>
-            <Button size="sm" variant="secondary" fullWidth>
-              Go Live
-            </Button>
-          </Link>
+          <GoLiveButton matchId={match.id} fullWidth hint />
           <Button
             size="sm"
             variant="ghost"
