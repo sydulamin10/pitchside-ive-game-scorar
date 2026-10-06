@@ -11,7 +11,7 @@ import { useAuth } from "@/store/auth";
  *   credits, including after leaving scoring and coming back.
  * - A match started without a credit stays locked until the account buys one.
  */
-export function useCanGoLive(matchId?: string, liveUnlocked?: boolean) {
+export function useCanGoLive(_matchId?: string, liveUnlocked?: boolean) {
   const user = useAuth((state) => state.user);
   const entitlement = useQuery({
     queryKey: ["billing-entitlement"],
