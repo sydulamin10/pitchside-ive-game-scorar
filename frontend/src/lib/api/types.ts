@@ -507,6 +507,7 @@ export interface MatchHeader {
   completed_at: string | null;
   state_version: number;
   share_url: string;
+  live_unlocked?: boolean;
   tournament: {
     id: string;
     name: string;

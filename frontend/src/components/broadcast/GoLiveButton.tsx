@@ -5,16 +5,18 @@ import { useCanGoLive } from "@/lib/liveAccess";
 
 export function GoLiveButton({
   matchId,
+  liveUnlocked = false,
   size = "sm",
   fullWidth = false,
   hint = false,
 }: {
   matchId: string;
+  liveUnlocked?: boolean;
   size?: "sm" | "md" | "lg";
   fullWidth?: boolean;
   hint?: boolean;
 }) {
-  const { locked, reason } = useCanGoLive(matchId);
+  const { locked, reason } = useCanGoLive(matchId, liveUnlocked);
   const href = `/app/matches/${matchId}/broadcast`;
 
   return (

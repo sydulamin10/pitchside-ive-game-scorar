@@ -107,18 +107,18 @@ export default function BroadcastStudio() {
   const [showObsAdvanced, setShowObsAdvanced] = useState(false);
   const { active: infoPanels, onToggle: toggleInfo } = useLiveInfoPanels();
 
-  const liveAccess = useCanGoLive(matchId);
-
   const matchQuery = useQuery({
     queryKey: ["match", matchId],
     queryFn: () => matchesApi.get(matchId!),
     enabled: Boolean(matchId),
   });
 
+  const liveAccess = useCanGoLive(matchId, matchQuery.data?.match.live_unlocked);
+
   const sessionQuery = useQuery({
     queryKey: ["stream-session", matchId],
     queryFn: () => broadcastApi.ensure(matchId!),
-    enabled: Boolean(matchId) && liveAccess.ready && liveAccess.allowed && !liveAccess.hasSession,
+    enabled: Boolean(matchId) && liveAccess.ready && liveAccess.allowed,
     retry: 1,
   });
 
@@ -151,7 +151,7 @@ export default function BroadcastStudio() {
   });
   overlayStateRef.current = state ?? null;
   snapshotRef.current = scorecard.data ?? null;
-  const session = liveAccess.active.data ?? sessionQuery.data;
+  const session = sessionQuery.data;
 
   useEffect(() => {
     if (!state?.graphics?.design) return;
@@ -267,6 +267,7 @@ export default function BroadcastStudio() {
     void queryClient.invalidateQueries({ queryKey: ["stream-session", matchId] });
     void queryClient.invalidateQueries({ queryKey: ["stream-session-active", matchId] });
     void queryClient.invalidateQueries({ queryKey: ["billing-entitlement"] });
+    void queryClient.invalidateQueries({ queryKey: ["match", matchId] });
   };
 
   const saveDestinations = useMutation({

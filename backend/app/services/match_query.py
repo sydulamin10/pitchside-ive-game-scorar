@@ -83,6 +83,7 @@ class MatchSnapshot:
     innings: list[InningsSnapshot]
     squads: dict[str, list[MatchPlayer]]
     outcome: MatchOutcome
+    live_unlocked: bool = False
 
     # ------------------------------------------------------------- accessors
     @property
@@ -124,6 +125,7 @@ class MatchSnapshot:
             "completed_at": match.completed_at,
             "state_version": match.state_version,
             "share_url": settings.public_match_url(match.public_slug),
+            "live_unlocked": self.live_unlocked,
             "tournament": (
                 {
                     "id": str(match.tournament.id),
@@ -360,7 +362,16 @@ async def build_snapshot(session: AsyncSession, match: Match) -> MatchSnapshot:
         team_names=team_names,
         is_limited_overs=match.match_format is not MatchFormat.TEST,
     )
-    return MatchSnapshot(match=match, innings=snapshots, squads=squads, outcome=outcome)
+    from app.services import billing_service
+
+    live_unlocked = await billing_service.match_live_unlocked(session, match.id)
+    return MatchSnapshot(
+        match=match,
+        innings=snapshots,
+        squads=squads,
+        outcome=outcome,
+        live_unlocked=live_unlocked,
+    )
 
 
 async def load_snapshot(

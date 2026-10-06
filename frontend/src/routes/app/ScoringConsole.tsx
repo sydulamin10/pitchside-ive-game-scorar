@@ -190,7 +190,7 @@ export default function ScoringConsole() {
               Open scorecard
             </Button>
           </a>
-          <GoLiveButton matchId={match.id} />
+          <GoLiveButton matchId={match.id} liveUnlocked={match.live_unlocked === true} />
         </div>
       </header>
 
@@ -408,7 +408,7 @@ export default function ScoringConsole() {
           ))}
         </div>
         <div className="flex flex-col gap-2 lg:hidden">
-          <GoLiveButton matchId={match.id} fullWidth hint />
+          <GoLiveButton matchId={match.id} liveUnlocked={match.live_unlocked === true} fullWidth hint />
           <Button
             size="sm"
             variant="ghost"

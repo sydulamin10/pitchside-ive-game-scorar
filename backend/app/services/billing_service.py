@@ -293,6 +293,14 @@ def _counts_for_entitlement(payment: Payment) -> bool:
     return (payment.note or "").strip() != GRANDFATHER_NOTE
 
 
+async def match_live_unlocked(session: AsyncSession, match_id: uuid.UUID) -> bool:
+    """True once a live credit (or admin/pro) has been reserved for this match."""
+    row = (
+        await session.execute(select(LiveUsage.id).where(LiveUsage.match_id == match_id).limit(1))
+    ).scalar_one_or_none()
+    return row is not None
+
+
 async def entitlement_for(session: AsyncSession, user: User) -> Entitlement:
     if user.is_admin:
         return Entitlement(
