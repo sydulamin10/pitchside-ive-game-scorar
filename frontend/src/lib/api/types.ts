@@ -238,6 +238,164 @@ export interface SessionInfo {
   is_current: boolean;
 }
 
+// ----------------------------------------------- account / wallet / content
+
+export type RequestStatus = "pending" | "approved" | "rejected";
+export type SupportStatus = "open" | "resolved";
+
+export interface AccountOverview {
+  balance: string;
+  currency: string;
+  converted_balance_bdt: string | null;
+  exchange_rate_bdt: number | null;
+  live_credits: number;
+  can_go_live: boolean;
+  pro_until: string | null;
+  is_admin: boolean;
+  is_approved: boolean;
+  pending_topups: number;
+  reason: string | null;
+}
+
+export interface WalletTransaction {
+  id: string;
+  amount: string;
+  balance_after: string;
+  kind: string;
+  reference: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface TopupInput {
+  amount: string;
+  method?: string;
+  reference?: string | null;
+  note?: string | null;
+}
+
+export interface Topup {
+  id: string;
+  user_id: string;
+  user_email?: string | null;
+  user_name?: string | null;
+  amount: string;
+  currency: string;
+  method: string;
+  reference: string | null;
+  note: string | null;
+  status: RequestStatus;
+  decided_at: string | null;
+  created_at: string;
+}
+
+export interface PurchaseInput {
+  plan: BillingPlanId;
+  quantity?: number;
+  tournament_id?: string | null;
+  coupon_code?: string | null;
+}
+
+export interface CouponRequestInput {
+  message?: string | null;
+}
+
+export interface CouponRequestItem {
+  id: string;
+  user_id: string;
+  user_email?: string | null;
+  user_name?: string | null;
+  message: string | null;
+  status: RequestStatus;
+  response: string | null;
+  coupon_code: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+export interface SupportRequestInput {
+  subject: string;
+  message: string;
+}
+
+export interface SupportRequestItem {
+  id: string;
+  user_id: string;
+  user_email?: string | null;
+  user_name?: string | null;
+  subject: string;
+  message: string;
+  status: SupportStatus;
+  response: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+export interface FaqItem {
+  q: string;
+  a: string;
+}
+
+export interface SiteContent {
+  whatsapp_number: string;
+  whatsapp_link: string | null;
+  whatsapp_message: string;
+  exchange_rate_bdt: number | null;
+  faq: FaqItem[];
+}
+
+export interface SiteContentInput {
+  whatsapp_number?: string;
+  whatsapp_message?: string;
+  exchange_rate_bdt?: number;
+  faq?: FaqItem[];
+}
+
+export interface TutorialVideo {
+  id: string;
+  title: string;
+  youtube_id: string;
+  url: string;
+  embed_url: string;
+  thumbnail_url: string;
+  description: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface TutorialInput {
+  title: string;
+  url: string;
+  description?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+export interface AdminOverview {
+  totals: {
+    users: number;
+    teams: number;
+    matches: number;
+    live_matches: number;
+    active_tournaments: number;
+    active_pro_subscribers: number;
+    pending_topups: number;
+    pending_coupon_requests: number;
+    open_support_requests: number;
+  };
+  revenue: { today: string; month: string; all_time: string; currency: string };
+  recent_payments: BillingPayment[];
+  recent_users: Array<{
+    id: string;
+    email: string;
+    display_name: string;
+    role: string;
+    is_approved: boolean;
+    created_at: string;
+  }>;
+}
+
 // ------------------------------------------------------------------- teams
 
 export interface Player {

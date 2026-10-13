@@ -1,8 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
+import { MessageCircle } from "lucide-react";
 import { Link } from "react-router";
 
-import { CtaRow, H2, P, PageHead, Prose } from "@/components/layout/Marketing";
+import { CtaRow, Faq, H2, P, PageHead, Prose } from "@/components/layout/Marketing";
 import { Button } from "@/components/ui/Button";
 import { Badge, Panel, Seam, SectionTitle } from "@/components/ui/Surface";
+import { content } from "@/lib/api/endpoints";
 import { cn } from "@/lib/utils";
 
 const PLANS = [
@@ -134,6 +137,9 @@ function Cell({ value }: { value: string }) {
 }
 
 export default function Pricing() {
+  const site = useQuery({ queryKey: ["site-content"], queryFn: () => content.site() });
+  const faq = (site.data?.faq ?? []).filter((item) => item.q && item.a);
+
   return (
     <>
       <PageHead
@@ -234,6 +240,27 @@ export default function Pricing() {
           About page and we will quote the days you actually broadcast.
         </P>
       </Prose>
+
+      {site.data?.whatsapp_link ? (
+        <section className="mx-auto max-w-3xl px-4 pb-8">
+          <Panel className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <MessageCircle className="mt-0.5 size-5 shrink-0 text-flip" />
+              <div>
+                <SectionTitle>WhatsApp support</SectionTitle>
+                <p className="pt-1 font-sans text-sm text-willow-soft">
+                  Message ODCC LIVE on WhatsApp. The number is set by the admin.
+                </p>
+              </div>
+            </div>
+            <a href={site.data.whatsapp_link} target="_blank" rel="noreferrer">
+              <Button size="sm">Chat on WhatsApp</Button>
+            </a>
+          </Panel>
+        </section>
+      ) : null}
+
+      {faq.length > 0 ? <Faq items={faq} /> : null}
 
       <CtaRow
         title="Ready for match day?"

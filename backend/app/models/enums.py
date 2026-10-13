@@ -255,6 +255,26 @@ class LiveUsageSource(StrEnum):
     ADMIN = "admin"
 
 
+class RequestStatus(StrEnum):
+    """Lifecycle for user-submitted requests (top-ups, coupon requests)."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class SupportStatus(StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+
+
+class WalletTxnKind(StrEnum):
+    TOPUP = "topup"
+    PURCHASE = "purchase"
+    ADJUSTMENT = "adjustment"
+    REFUND = "refund"
+
+
 class AuditAction(StrEnum):
     USER_REGISTERED = "user.registered"
     USER_LOGIN = "user.login"

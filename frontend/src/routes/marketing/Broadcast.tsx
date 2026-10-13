@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
 import {
@@ -11,6 +12,7 @@ import {
   Steps,
 } from "@/components/layout/Marketing";
 import { Paper, Seam, SectionTitle } from "@/components/ui/Surface";
+import { content } from "@/lib/api/endpoints";
 
 const PARAMS: Array<[string, string, string]> = [
   ["position", "bottom | top", "Which edge the bar sits against. Default bottom."],
@@ -24,6 +26,8 @@ const PARAMS: Array<[string, string, string]> = [
 ];
 
 export default function Broadcast() {
+  const tutorials = useQuery({ queryKey: ["tutorials"], queryFn: () => content.tutorials() });
+
   return (
     <>
       <PageHead
@@ -113,6 +117,36 @@ export default function Broadcast() {
           />
         </div>
       </section>
+
+      {(tutorials.data ?? []).length > 0 ? (
+        <section className="mx-auto max-w-3xl px-4 py-10">
+          <SectionTitle>YouTube tutorials</SectionTitle>
+          <p className="pt-2 font-sans text-sm text-willow-soft">
+            Walkthroughs from ODCC LIVE. The admin team can add or hide videos any time.
+          </p>
+          <div className="mt-4 grid gap-4">
+            {(tutorials.data ?? []).map((video) => (
+              <Paper key={video.id} className="overflow-hidden">
+                <div className="aspect-video bg-ink">
+                  <iframe
+                    title={video.title}
+                    src={video.embed_url}
+                    className="size-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+                <div className="p-4">
+                  <h3 className="font-sans text-base font-semibold text-ink">{video.title}</h3>
+                  {video.description ? (
+                    <p className="pt-1 font-sans text-sm text-ink-soft">{video.description}</p>
+                  ) : null}
+                </div>
+              </Paper>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <Faq
         items={[

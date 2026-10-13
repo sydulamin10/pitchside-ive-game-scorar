@@ -6,9 +6,18 @@ modules, so the registry is always complete.
 """
 
 from app.db.base import Base
+from app.models.account import (
+    CouponRequest,
+    SiteContent,
+    SupportRequest,
+    TutorialVideo,
+    WalletAccount,
+    WalletTopup,
+    WalletTransaction,
+)
 from app.models.audit import AuditLog
-from app.models.billing import Coupon, LiveUsage, Payment
 from app.models.awards import PlayerAward
+from app.models.billing import Coupon, LiveUsage, Payment
 from app.models.match import (
     Delivery,
     DeliveryRevision,
@@ -36,8 +45,15 @@ __all__ = [
     "AuditLog",
     "Base",
     "Coupon",
+    "CouponRequest",
     "LiveUsage",
     "Payment",
+    "SiteContent",
+    "SupportRequest",
+    "TutorialVideo",
+    "WalletAccount",
+    "WalletTopup",
+    "WalletTransaction",
     "BracketMatch",
     "Delivery",
     "DeliveryRevision",

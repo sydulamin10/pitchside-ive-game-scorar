@@ -14,10 +14,15 @@ from app.models.enums import MatchStatus
 from app.models.match import Innings, Match
 from app.schemas.match import MatchListItem, OverlayDirectorUpdate
 from app.schemas.settings import FacebookSettingsUpdate
-from app.services import app_settings, match_service, overlay_director
+from app.services import admin_stats, app_settings, match_service, overlay_director
 from app.services.match_query import load_match
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.get("/overview", summary="Admin dashboard stats")
+async def admin_overview(session: SessionDep, _user: AdminUser) -> dict[str, Any]:
+    return await admin_stats.dashboard(session)
 
 
 def _score_line(match: Match) -> str | None:

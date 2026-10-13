@@ -50,6 +50,20 @@ import type {
   BillingPlanInfo,
   BillingQuote,
   BillingQuoteInput,
+  AccountOverview,
+  WalletTransaction,
+  Topup,
+  TopupInput,
+  PurchaseInput,
+  CouponRequestItem,
+  CouponRequestInput,
+  SupportRequestItem,
+  SupportRequestInput,
+  SiteContent,
+  SiteContentInput,
+  TutorialVideo,
+  TutorialInput,
+  AdminOverview,
 } from "./types";
 
 // -------------------------------------------------------------------- auth
@@ -562,6 +576,7 @@ export const publicApi = {
 };
 
 export const admin = {
+  overview: () => api.get<AdminOverview>("/admin/overview"),
   matches: (params: { status?: MatchStatus; limit?: number } = {}) =>
     api.get<MatchListItem[]>("/admin/matches", { query: { ...params } }),
   patchOverlay: (id: string, input: Partial<OverlayDirector>) =>
@@ -569,6 +584,52 @@ export const admin = {
   facebookSettings: () => api.get<FacebookAppSettings>("/admin/settings/facebook"),
   saveFacebookSettings: (input: { app_id: string; app_secret?: string | null }) =>
     api.put<FacebookAppSettings>("/admin/settings/facebook", input),
+  // site content + tutorials
+  siteContent: () => api.get<SiteContent>("/content/site"),
+  saveSiteContent: (input: SiteContentInput) => api.put<SiteContent>("/content/admin/site", input),
+  tutorials: () => api.get<TutorialVideo[]>("/content/admin/tutorials"),
+  createTutorial: (input: TutorialInput) => api.post<TutorialVideo>("/content/admin/tutorials", input),
+  updateTutorial: (id: string, input: Partial<TutorialInput>) =>
+    api.patch<TutorialVideo>(`/content/admin/tutorials/${id}`, input),
+  deleteTutorial: (id: string) => api.delete<Message>(`/content/admin/tutorials/${id}`),
+  // request queues
+  topups: (params: { status?: string; limit?: number; offset?: number } = {}) =>
+    api.get<Topup[]>("/account/admin/topups", { query: { ...params } }),
+  approveTopup: (id: string) => api.post<Topup>(`/account/admin/topups/${id}/approve`, {}),
+  rejectTopup: (id: string) => api.post<Topup>(`/account/admin/topups/${id}/reject`, {}),
+  couponRequests: (params: { status?: string } = {}) =>
+    api.get<CouponRequestItem[]>("/account/admin/coupon-requests", { query: { ...params } }),
+  resolveCouponRequest: (
+    id: string,
+    input: { status: "approved" | "rejected"; response?: string | null; coupon_code?: string | null },
+  ) => api.post<CouponRequestItem>(`/account/admin/coupon-requests/${id}/resolve`, input),
+  supportRequests: (params: { status?: string } = {}) =>
+    api.get<SupportRequestItem[]>("/account/admin/support-requests", { query: { ...params } }),
+  respondSupportRequest: (
+    id: string,
+    input: { response?: string | null; status?: "open" | "resolved" },
+  ) => api.post<SupportRequestItem>(`/account/admin/support-requests/${id}/respond`, input),
+};
+
+export const content = {
+  site: () => api.get<SiteContent>("/content/site", { auth: false }),
+  tutorials: () => api.get<TutorialVideo[]>("/content/tutorials", { auth: false }),
+};
+
+export const account = {
+  overview: () => api.get<AccountOverview>("/account/overview"),
+  transactions: () => api.get<WalletTransaction[]>("/account/transactions"),
+  topups: () => api.get<Topup[]>("/account/topups"),
+  createTopup: (input: TopupInput) => api.post<Topup>("/account/topups", input),
+  purchase: (input: PurchaseInput) => api.post<BillingPayment>("/account/purchase", input),
+  payments: (params: { limit?: number; offset?: number } = {}) =>
+    api.get<BillingPayment[]>("/account/payments", { query: { ...params } }),
+  couponRequests: () => api.get<CouponRequestItem[]>("/account/coupon-requests"),
+  createCouponRequest: (input: CouponRequestInput) =>
+    api.post<CouponRequestItem>("/account/coupon-requests", input),
+  supportRequests: () => api.get<SupportRequestItem[]>("/account/support-requests"),
+  createSupportRequest: (input: SupportRequestInput) =>
+    api.post<SupportRequestItem>("/account/support-requests", input),
 };
 
 export const billing = {

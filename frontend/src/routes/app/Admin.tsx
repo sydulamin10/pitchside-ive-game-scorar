@@ -3,6 +3,12 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { AccountControls } from "@/components/admin/AccountControls";
+import {
+  ContentPanel,
+  OverviewPanel,
+  RequestsPanel,
+  TutorialsPanel,
+} from "@/components/admin/SiteOps";
 import { OverlayDirectorPanel } from "@/components/broadcast/OverlayDirectorPanel";
 import { EventGraphics } from "@/components/broadcast/EventGraphics";
 import { mockOverlayState } from "@/components/broadcast/TvScoreBars";
@@ -13,7 +19,18 @@ import { Badge, EmptyState, Panel, SectionTitle, Spinner } from "@/components/ui
 import { admin } from "@/lib/api/endpoints";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
 import type { MatchListItem, OverlayDirector } from "@/lib/api/types";
+import { cn } from "@/lib/utils";
 import { toast, toastError } from "@/store/toast";
+
+type Tab = "overview" | "requests" | "content" | "tutorials" | "live";
+
+const TABS: Array<[Tab, string]> = [
+  ["overview", "Dashboard"],
+  ["requests", "Requests"],
+  ["content", "WhatsApp & FAQ"],
+  ["tutorials", "Tutorials"],
+  ["live", "Live overlay"],
+];
 
 function LiveMatchRow({ match }: { match: MatchListItem }) {
   const { state } = useMatchStream(match.public_slug, {
@@ -52,6 +69,7 @@ function LiveMatchRow({ match }: { match: MatchListItem }) {
 }
 
 export default function Admin() {
+  const [tab, setTab] = useState<Tab>("overview");
   const live = useQuery({
     queryKey: ["admin-matches", "live"],
     queryFn: () => admin.matches({ status: "live", limit: 50 }),
@@ -98,9 +116,10 @@ export default function Admin() {
       <header className="flex items-start gap-2">
         <HistoryBackButton />
         <div>
-          <h1 className="font-sans text-lg font-semibold text-chalk">Admin</h1>
+          <h1 className="font-sans text-lg font-semibold text-chalk">Admin Portal</h1>
           <p className="font-sans text-xs text-willow-soft">
-            Direct the live overlay, ticker and tournament chip for matches that are on air.
+            One login for scoring and admin. Wallet top-ups, coupons, support, WhatsApp, FAQ and
+            tutorials live here. Live overlay controls stay on the Live overlay tab.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Link to="/billing">
@@ -112,6 +131,28 @@ export default function Admin() {
         </div>
       </header>
 
+      <nav className="flex gap-1 overflow-x-auto">
+        {TABS.map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={cn(
+              "rounded-[3px] px-3 py-1.5 font-sans text-sm",
+              tab === id ? "bg-pitch-line text-flip" : "text-willow-soft hover:text-chalk",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === "overview" ? <OverviewPanel /> : null}
+      {tab === "requests" ? <RequestsPanel /> : null}
+      {tab === "content" ? <ContentPanel /> : null}
+      {tab === "tutorials" ? <TutorialsPanel /> : null}
+      {tab !== "live" ? null : (
+        <>
       <AccountControls />
 
       <Panel className="flex flex-col gap-3 p-4">
@@ -197,6 +238,8 @@ export default function Admin() {
             <LiveMatchRow key={match.id} match={match} />
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );
