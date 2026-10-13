@@ -1,6 +1,6 @@
 """Wallet balance, top-ups, coupon/support requests, tutorials, site content.
 
-Revision ID: 20261013_1200_account_wallet_content
+Revision ID: 20261013_wallet
 Revises: 20260922_2025_billing_audit
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "20261013_1200_account_wallet_content"
+revision = "20261013_wallet"
 down_revision = "20260922_2025_billing_audit"
 branch_labels = None
 depends_on = None
