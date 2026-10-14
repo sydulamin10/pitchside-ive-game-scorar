@@ -12,7 +12,7 @@
 # ---------------------------------------------------------------------------
 
 param(
-  [string]$ApiBaseUrl = "https://api.odcc.live",
+  [string]$ApiBaseUrl = "",
   [switch]$SkipInstall
 )
 
@@ -47,9 +47,9 @@ if ($LASTEXITCODE -ne 0) { throw "build failed" }
 # src/lib/api/client.ts), so the API host can be repointed by editing this one
 # file on the server instead of rebuilding. REST and SSE both go direct.
 $runtimeConfig = @"
-/* ODCC LIVE production runtime config: web on odcc.live, API on api.odcc.live.
-   Edit these two values to repoint the app at a different API host; no rebuild
-   is needed. Both must be absolute origins with no trailing slash. */
+/* ODCC LIVE production runtime config.
+   Empty string = same origin (https://odcc.live/api/v1), which avoids CORS when
+   api.odcc.live briefly returns 502. Set an absolute origin to force the API host. */
 window.__PITCHSIDE_API_BASE_URL__ = "$ApiBaseUrl";
 window.__PITCHSIDE_STREAM_BASE_URL__ = "$ApiBaseUrl";
 "@

@@ -250,7 +250,22 @@ async function authHeader(): Promise<string | null> {
   return accessToken;
 }
 
-async function send<T>(path: string, options: RequestOptions, retryOn401: boolean): Promise<T> {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function canRetryRequest(method: string, path: string, error: ApiError): boolean {
+  if (!error.isRetryable) return false;
+  if (method === "GET" || method === "HEAD") return true;
+  // Login/register/refresh are safe to repeat. Scoring writes are not.
+  return path.startsWith("/auth/");
+}
+
+async function sendOnce<T>(
+  path: string,
+  options: RequestOptions,
+  retryOn401: boolean,
+): Promise<T> {
   const { method = "GET", body, query, auth = true, signal, timeoutMs, headers } = options;
 
   const requestHeaders: Record<string, string> = { accept: "application/json", ...headers };
@@ -276,7 +291,6 @@ async function send<T>(path: string, options: RequestOptions, retryOn401: boolea
     });
   } catch (cause) {
     if (signal?.aborted) throw cause;
-    // Offline, DNS failure, or timeout: one shape for the whole app.
     throw new ApiError(
       0,
       "network_error",
@@ -288,7 +302,7 @@ async function send<T>(path: string, options: RequestOptions, retryOn401: boolea
 
   if (response.status === 401 && auth && retryOn401) {
     const fresh = await refreshAccessToken();
-    if (fresh) return send<T>(path, options, false);
+    if (fresh) return sendOnce<T>(path, options, false);
   }
 
   const payload = await parseBody(response);
@@ -298,6 +312,26 @@ async function send<T>(path: string, options: RequestOptions, retryOn401: boolea
     throw error;
   }
   return payload as T;
+}
+
+async function send<T>(path: string, options: RequestOptions, retryOn401: boolean): Promise<T> {
+  const method = options.method ?? "GET";
+  let last: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await sendOnce<T>(path, options, retryOn401);
+    } catch (cause) {
+      last = cause;
+      if (options.signal?.aborted) throw cause;
+      if (!(cause instanceof ApiError) || !canRetryRequest(method, path, cause) || attempt === 3) {
+        throw cause;
+      }
+      await sleep(500 * 2 ** (attempt - 1));
+    }
+  }
+  throw last instanceof Error
+    ? last
+    : new ApiError(0, "network_error", "Could not reach the server. Please try again.");
 }
 
 export const api = {
