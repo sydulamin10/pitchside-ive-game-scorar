@@ -45,3 +45,4 @@ class SiteContentUpdate(Schema):
     whatsapp_message: str | None = Field(default=None, max_length=240)
     exchange_rate_bdt: float | None = Field(default=None, ge=0, le=100000)
     faq: list[dict[str, Any]] | None = None
+    tutorial_playlist_url: str | None = Field(default=None, max_length=400)

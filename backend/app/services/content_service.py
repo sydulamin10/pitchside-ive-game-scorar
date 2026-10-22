@@ -74,9 +74,11 @@ DEFAULT_SITE: dict[str, Any] = {
             "from the Pricing page.",
         },
     ],
+    "tutorial_playlist_url": "",
 }
 
 _YT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
+_YT_PLAYLIST_RE = re.compile(r"^[A-Za-z0-9_-]{10,80}$")
 
 
 def extract_youtube_id(raw: str) -> str:
@@ -101,6 +103,23 @@ def extract_youtube_id(raw: str) -> str:
     if not _YT_ID_RE.match(candidate):
         raise BadRequest("That does not look like a YouTube link.", code="tutorial_url_invalid")
     return candidate
+
+
+def extract_youtube_playlist_id(raw: str) -> str | None:
+    """Pull a playlist id from a YouTube playlist / watch URL."""
+    value = (raw or "").strip()
+    if not value:
+        return None
+    if _YT_PLAYLIST_RE.match(value) and "/" not in value and "." not in value:
+        return value
+    parsed = urlparse(value if "//" in value else f"https://{value}")
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    if not host.endswith("youtube.com") and host != "youtu.be":
+        return None
+    candidate = parse_qs(parsed.query).get("list", [""])[0].strip()
+    if _YT_PLAYLIST_RE.match(candidate):
+        return candidate
+    return None
 
 
 # ------------------------------------------------------------------ site content
@@ -138,6 +157,14 @@ async def save_site(session: AsyncSession, patch: dict[str, Any]) -> dict[str, A
             continue
         if key == "faq":
             current[key] = _clean_faq(value)
+        elif key == "tutorial_playlist_url":
+            url = str(value or "").strip()
+            if url and extract_youtube_playlist_id(url) is None:
+                raise BadRequest(
+                    "That does not look like a YouTube playlist link.",
+                    code="tutorial_playlist_invalid",
+                )
+            current[key] = url
         else:
             current[key] = value
     if row is None:
@@ -151,12 +178,15 @@ async def save_site(session: AsyncSession, patch: dict[str, Any]) -> dict[str, A
 
 async def public_site(session: AsyncSession) -> dict[str, Any]:
     site = await get_site(session)
+    playlist_url = str(site.get("tutorial_playlist_url") or "").strip()
     return {
         "whatsapp_number": site.get("whatsapp_number") or "",
         "whatsapp_link": await whatsapp_link(session),
         "whatsapp_message": site.get("whatsapp_message") or "",
         "exchange_rate_bdt": site.get("exchange_rate_bdt"),
         "faq": site.get("faq") or [],
+        "tutorial_playlist_url": playlist_url,
+        "tutorial_playlist_id": extract_youtube_playlist_id(playlist_url),
     }
 
 

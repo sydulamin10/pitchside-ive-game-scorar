@@ -401,6 +401,7 @@ export function ContentPanel() {
   const [whatsapp, setWhatsapp] = useState("");
   const [message, setMessage] = useState("");
   const [rate, setRate] = useState("110");
+  const [playlist, setPlaylist] = useState("");
   const [faq, setFaq] = useState<FaqItem[]>([]);
 
   useEffect(() => {
@@ -408,6 +409,7 @@ export function ContentPanel() {
     setWhatsapp(site.data.whatsapp_number ?? "");
     setMessage(site.data.whatsapp_message ?? "");
     setRate(String(site.data.exchange_rate_bdt ?? ""));
+    setPlaylist(site.data.tutorial_playlist_url ?? "");
     setFaq(site.data.faq?.length ? site.data.faq : [{ q: "", a: "" }]);
   }, [site.data]);
 
@@ -417,6 +419,7 @@ export function ContentPanel() {
         whatsapp_number: whatsapp.trim(),
         whatsapp_message: message.trim(),
         exchange_rate_bdt: Number(rate) || 0,
+        tutorial_playlist_url: playlist.trim(),
         faq: faq.filter((item) => item.q.trim() && item.a.trim()),
       }),
     onSuccess: () => {
@@ -454,6 +457,12 @@ export function ContentPanel() {
         step="0.01"
         value={rate}
         onChange={(e) => setRate(e.target.value)}
+      />
+      <TextField
+        label="YouTube tutorial playlist (optional)"
+        value={playlist}
+        onChange={(e) => setPlaylist(e.target.value)}
+        hint="Paste a playlist URL. The Broadcast page can play the whole set."
       />
       <div className="flex flex-col gap-3">
         <SectionTitle>FAQ</SectionTitle>
@@ -557,7 +566,9 @@ export function TutorialsPanel() {
       <Panel className="flex flex-col gap-3 p-4">
         <SectionTitle>Add YouTube tutorial</SectionTitle>
         <p className="font-sans text-xs text-willow-soft">
-          Videos appear on the Broadcast page. Paste any YouTube watch, share, or embed link.
+          Videos play on /broadcast under ODCC Live Tutorial. Add them in this order: 1) How to
+          score a match, 2) How to go live, 3) How to add the overlay in OBS, 4) How to get a
+          YouTube stream key. Paste any YouTube watch, share, or embed link.
         </p>
         <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
         <TextField label="YouTube URL" value={url} onChange={(e) => setUrl(e.target.value)} />

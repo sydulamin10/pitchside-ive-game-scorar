@@ -351,6 +351,8 @@ export interface SiteContent {
   whatsapp_message: string;
   exchange_rate_bdt: number | null;
   faq: FaqItem[];
+  tutorial_playlist_url?: string;
+  tutorial_playlist_id?: string | null;
 }
 
 export interface SiteContentInput {
@@ -358,6 +360,7 @@ export interface SiteContentInput {
   whatsapp_message?: string;
   exchange_rate_bdt?: number;
   faq?: FaqItem[];
+  tutorial_playlist_url?: string;
 }
 
 export interface TutorialVideo {

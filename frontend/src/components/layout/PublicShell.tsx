@@ -35,6 +35,7 @@ const FOOTER = [
   {
     title: "Guides",
     links: [
+      { to: "/broadcast#tutorials", label: "ODCC Live tutorials" },
       { to: "/guides/youtube-stream-key", label: "YouTube stream key" },
       { to: "/guides/facebook-stream-key", label: "Facebook stream key" },
       { to: "/changelog", label: "Changelog" },

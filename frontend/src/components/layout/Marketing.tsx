@@ -25,8 +25,8 @@ export function PageHead({
   return (
     <header className="mx-auto max-w-3xl px-4 pt-12 pb-8">
       {eyebrow && <Badge tone="quiet">{eyebrow}</Badge>}
-      <h1 className="mt-4 text-3xl sm:text-4xl">{title}</h1>
-      <p className="mt-4 text-base text-chalk/85">{lede}</p>
+      <h1 className="mt-4 font-sans text-3xl tracking-normal sm:text-4xl">{title}</h1>
+      <p className="mt-4 font-sans text-base leading-relaxed tracking-normal text-chalk/85">{lede}</p>
     </header>
   );
 }
