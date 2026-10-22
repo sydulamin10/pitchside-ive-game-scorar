@@ -341,7 +341,7 @@ async def entitlement_for(session: AsyncSession, user: User) -> Entitlement:
     remaining = max(0, credits)
     can = remaining > 0 or pro_until is not None or bool(tournament_ids)
     reason = None
-    if not user.is_approved:
+    if settings.requires_admin_approval() and not user.is_approved:
         can = False
         reason = "This account is waiting for admin approval."
     elif not can:
@@ -362,7 +362,7 @@ async def assert_can_prepare_live(session: AsyncSession, user: User, match: Matc
     billed = await session.get(User, match.created_by_user_id) or user
     if billed.is_admin or user.is_admin:
         return Entitlement(True, 999, None, [], "admin")
-    if not billed.is_approved:
+    if settings.requires_admin_approval() and not billed.is_approved:
         raise Forbidden(
             "This account is waiting for admin approval.",
             code="account_pending_approval",

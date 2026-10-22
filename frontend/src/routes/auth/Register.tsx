@@ -18,7 +18,7 @@ export function Register() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
-  const [pendingKind, setPendingKind] = useState<"email" | "approval">("approval");
+  const [pendingKind, setPendingKind] = useState<"email" | "approval">("email");
 
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }));

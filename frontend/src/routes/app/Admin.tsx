@@ -110,7 +110,7 @@ export default function Admin() {
 }
 
 function UsersSection() {
-  const [filter, setFilter] = useState<"all" | "pending" | "unverified">("all");
+  const [filter, setFilter] = useState<"all" | "unverified">("all");
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-1">
@@ -118,7 +118,6 @@ function UsersSection() {
           [
             ["all", "All users"],
             ["unverified", "Unverified email"],
-            ["pending", "Pending approval"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -134,7 +133,7 @@ function UsersSection() {
           </button>
         ))}
       </div>
-      <AccountControls pendingOnly={filter === "pending"} unverifiedOnly={filter === "unverified"} />
+      <AccountControls unverifiedOnly={filter === "unverified"} />
     </div>
   );
 }
@@ -539,6 +538,14 @@ function SettingsSection() {
           <div>
             <dt className="text-willow-soft">Verification required</dt>
             <dd>{data?.email_verify_required ? "Yes — users confirm email before login" : "Off"}</dd>
+          </div>
+          <div>
+            <dt className="text-willow-soft">Admin approval</dt>
+            <dd>
+              {data?.auto_approve_registration
+                ? "Off — verified users can sign in"
+                : "On — an admin must approve each account"}
+            </dd>
           </div>
         </dl>
       </Panel>

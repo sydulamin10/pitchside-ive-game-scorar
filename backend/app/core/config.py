@@ -90,8 +90,9 @@ class Settings(BaseSettings):
     ARGON2_PARALLELISM: int = Field(default=2, ge=1)
     #: Registration can be closed (invite-only deployments).
     ALLOW_REGISTRATION: bool = True
-    #: When false, a new account cannot sign in until an admin approves it.
-    AUTO_APPROVE_REGISTRATION: bool = False
+    #: When true, a new account can sign in after email verification — no admin
+    #: approval step. Suspend still works via is_active.
+    AUTO_APPROVE_REGISTRATION: bool = True
     #: When true, login waits until the user clicks the email verification link.
     EMAIL_VERIFY_REQUIRED: bool = False
     EMAIL_VERIFY_TTL_SECONDS: int = Field(default=86_400, ge=300, le=7 * 86_400)
@@ -104,6 +105,9 @@ class Settings(BaseSettings):
     SMTP_STARTTLS: bool = True
     #: When false, live-broadcast plan limits are not enforced (tests).
     BILLING_ENFORCE: bool = True
+
+    def requires_admin_approval(self) -> bool:
+        return not self.AUTO_APPROVE_REGISTRATION
 
     CORS_ORIGINS: CsvList = Field(default_factory=lambda: ["http://localhost:5173"])
     #: Hosts accepted in the Host header. "*" is refused in production.

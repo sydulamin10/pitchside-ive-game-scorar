@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.errors import BadRequest, Conflict, Forbidden, NotFound
 from app.models.account import (
     CouponRequest,
@@ -204,7 +205,7 @@ async def purchase_with_balance(
         raise BadRequest("The free plan does not take a payment.", code="plan_is_free")
     if plan is BillingPlan.TOURNAMENT and tournament_id is None:
         raise BadRequest("Pick the tournament this package covers.", code="tournament_required")
-    if not user.is_approved and not user.is_admin:
+    if settings.requires_admin_approval() and not user.is_approved and not user.is_admin:
         raise Forbidden(
             "This account is waiting for admin approval.", code="account_pending_approval"
         )

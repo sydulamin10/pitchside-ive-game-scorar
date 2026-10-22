@@ -139,7 +139,7 @@ async def authenticate(
     if not user.is_active:
         raise Forbidden("This account has been disabled.", code="account_disabled")
 
-    if not user.is_approved and not user.is_admin:
+    if settings.requires_admin_approval() and not user.is_approved and not user.is_admin:
         raise Forbidden(
             "This account is waiting for admin approval. You cannot log in yet.",
             code="account_pending_approval",
@@ -243,7 +243,7 @@ async def rotate_refresh_token(
     ).scalar_one_or_none()
     if user is None or not user.is_active:
         raise Unauthorized("Your session is no longer valid.", code="invalid_token")
-    if not user.is_approved and not user.is_admin:
+    if settings.requires_admin_approval() and not user.is_approved and not user.is_admin:
         raise Forbidden(
             "This account is waiting for admin approval. You cannot log in yet.",
             code="account_pending_approval",

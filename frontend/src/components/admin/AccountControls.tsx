@@ -46,15 +46,6 @@ export function AccountControls({
     void client.invalidateQueries({ queryKey: ["billing-payments"] });
   };
 
-  const toggle = useMutation({
-    mutationFn: ({ id, on }: { id: string; on: boolean }) => billing.setApproval(id, on),
-    onSuccess: (row) => {
-      toast(row.is_approved ? "Account approved. They can log in now." : "Account turned off.", "success");
-      patchCaches(row);
-    },
-    onError: (err) => toastError(err, "Could not update approval."),
-  });
-
   const active = useMutation({
     mutationFn: ({ id, on }: { id: string; on: boolean }) => billing.setActive(id, on),
     onSuccess: (row) => {
@@ -107,7 +98,8 @@ export function AccountControls({
             : "Users"}
       </SectionTitle>
       <p className="mt-2 font-sans text-xs text-willow-soft">
-        Email verification, approval, suspend, and live credits. Admins stay verified and unlimited.
+        Email verification, suspend, and live credits. After they confirm email they can sign in.
+        Admins stay verified and unlimited.
       </p>
       {!pendingOnly && !unverifiedOnly ? (
         <TextField
@@ -144,13 +136,11 @@ export function AccountControls({
                   key={row.id}
                   row={row}
                   busy={
-                    (toggle.isPending && toggle.variables?.id === row.id) ||
                     (credits.isPending && credits.variables?.id === row.id) ||
                     (active.isPending && active.variables?.id === row.id) ||
                     (verify.isPending && verify.variables === row.id) ||
                     (resend.isPending && resend.variables === row.id)
                   }
-                  onApprove={(on) => toggle.mutate({ id: row.id, on })}
                   onActive={(on) => active.mutate({ id: row.id, on })}
                   onVerify={() => verify.mutate(row.id)}
                   onResend={() => resend.mutate(row.id)}
@@ -168,7 +158,6 @@ export function AccountControls({
 function AccountRow({
   row,
   busy,
-  onApprove,
   onActive,
   onVerify,
   onResend,
@@ -176,7 +165,6 @@ function AccountRow({
 }: {
   row: BillingAccount;
   busy: boolean;
-  onApprove: (on: boolean) => void;
   onActive: (on: boolean) => void;
   onVerify: () => void;
   onResend: () => void;
@@ -208,7 +196,6 @@ function AccountRow({
       <td className="py-3 pr-3">
         <div className="flex flex-col gap-1">
           {row.is_active ? <Badge tone="live">Active</Badge> : <Badge tone="wicket">Suspended</Badge>}
-          {row.is_approved ? <Badge tone="neutral">Approved</Badge> : <Badge tone="quiet">Pending</Badge>}
         </div>
       </td>
       <td className="py-3 pr-3">
@@ -246,15 +233,6 @@ function AccountRow({
                 </Button>
               </>
             ) : null}
-            <Button
-              size="sm"
-              type="button"
-              variant={row.is_approved ? "secondary" : "primary"}
-              disabled={row.is_approved || busy}
-              onClick={() => onApprove(true)}
-            >
-              Approve
-            </Button>
             <Button
               size="sm"
               type="button"

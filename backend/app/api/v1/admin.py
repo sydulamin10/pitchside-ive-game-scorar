@@ -185,6 +185,7 @@ async def admin_settings(_user: AdminUser) -> dict[str, Any]:
         "website_name": settings.PROJECT_NAME,
         "public_web_url": settings.PUBLIC_WEB_URL,
         "email_verify_required": settings.EMAIL_VERIFY_REQUIRED,
+        "auto_approve_registration": settings.AUTO_APPROVE_REGISTRATION,
         "smtp_configured": settings.smtp_configured,
         "smtp_host": settings.SMTP_HOST,
         "smtp_from": settings.SMTP_FROM_EMAIL or settings.SMTP_USERNAME,

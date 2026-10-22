@@ -87,7 +87,7 @@ async def register(
     user = await auth_service.register(session, payload, request=request)
     await auth_service.send_verification_email(user)
     needs_verification = settings.EMAIL_VERIFY_REQUIRED and not user.is_email_verified
-    needs_approval = not user.is_approved and not user.is_admin
+    needs_approval = settings.requires_admin_approval() and not user.is_approved and not user.is_admin
     if needs_verification or needs_approval:
         await session.commit()
         if needs_verification:

@@ -10,6 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.errors import Forbidden, NotFound, Unauthorized
 from app.core.security import decode_access_token
 from app.db.session import get_session
@@ -39,7 +40,7 @@ async def get_current_user(request: Request, session: SessionDep, credentials: C
     ).scalar_one_or_none()
     if user is None or not user.is_active:
         raise Unauthorized("Your account is no longer active.", code="account_disabled")
-    if not user.is_approved and not user.is_admin:
+    if settings.requires_admin_approval() and not user.is_approved and not user.is_admin:
         raise Forbidden(
             "This account is waiting for admin approval. You cannot log in yet.",
             code="account_pending_approval",

@@ -56,3 +56,36 @@ async def test_unverified_login_is_blocked(monkeypatch) -> None:
     with pytest.raises(Forbidden) as caught:
         await auth_service.authenticate(session, email="scorer@example.org", password="password1234")
     assert caught.value.code == "email_not_verified"
+
+
+@pytest.mark.asyncio
+async def test_unapproved_login_is_allowed_when_auto_approve(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "AUTO_APPROVE_REGISTRATION", True)
+    monkeypatch.setattr(settings, "EMAIL_VERIFY_REQUIRED", True)
+    user = SimpleNamespace(
+        is_active=True,
+        is_approved=False,
+        is_admin=False,
+        is_email_verified=True,
+        password_hash="unused",
+        locked_until=None,
+        failed_login_count=0,
+        id=uuid.uuid4(),
+        password_needs=False,
+    )
+
+    async def _fake_execute(_stmt):
+        return SimpleNamespace(scalar_one_or_none=lambda: user)
+
+    async def _fake_audit(*_args, **_kwargs):
+        return None
+
+    session = SimpleNamespace(execute=_fake_execute, commit=lambda: None)
+    monkeypatch.setattr(auth_service, "verify_password", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(auth_service, "password_needs_rehash", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(auth_service.audit_service, "record", _fake_audit)
+
+    out = await auth_service.authenticate(
+        session, email="scorer@example.org", password="password1234"
+    )
+    assert out is user

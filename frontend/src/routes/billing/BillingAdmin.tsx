@@ -13,10 +13,9 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 import { toast, toastError } from "@/store/toast";
 
-type Tab = "approvals" | "accounts" | "payment" | "ledger" | "coupons";
+type Tab = "accounts" | "payment" | "ledger" | "coupons";
 
 const TABS: Array<[Tab, string]> = [
-  ["approvals", "Approvals"],
   ["accounts", "Accounts"],
   ["payment", "Record payment"],
   ["ledger", "Transactions"],
@@ -33,7 +32,7 @@ const PLAN_LABEL: Record<BillingPlanId, string> = {
 export default function BillingAdmin() {
   const user = useAuth((state) => state.user);
   const logout = useAuth((state) => state.logout);
-  const [tab, setTab] = useState<Tab>("approvals");
+  const [tab, setTab] = useState<Tab>("accounts");
 
   return (
     <div className="min-h-dvh bg-pitch text-chalk">
@@ -91,7 +90,6 @@ export default function BillingAdmin() {
           match ($1.20, member $0.90). Pro is $9.99/month unlimited. Tournament package is $15.99
           for that cup. Admins are never limited. Coupons can cut any amount.
         </p>
-        {tab === "approvals" ? <AccountControls pendingOnly /> : null}
         {tab === "accounts" ? <AccountControls /> : null}
         {tab === "payment" ? <PaymentPanel /> : null}
         {tab === "ledger" ? <LedgerPanel /> : null}

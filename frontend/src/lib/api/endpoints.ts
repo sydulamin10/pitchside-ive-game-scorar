@@ -626,6 +626,7 @@ export const admin = {
       website_name: string;
       public_web_url: string;
       email_verify_required: boolean;
+      auto_approve_registration: boolean;
       smtp_configured: boolean;
       smtp_host: string;
       smtp_from: string | null;

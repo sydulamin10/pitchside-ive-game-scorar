@@ -22,7 +22,6 @@ export function OverviewPanel() {
   const cards: Array<[string, string | number]> = [
     ["Total users", totals.users],
     ["Unverified email", totals.unverified_users ?? 0],
-    ["Pending approval", totals.pending_approvals ?? 0],
     ["Total teams", totals.teams],
     ["Total matches", totals.matches],
     ["Live matches", totals.live_matches],
