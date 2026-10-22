@@ -90,7 +90,10 @@ export const auth = {
   },
 
   async login(input: { email: string; password: string }): Promise<TokenResponse> {
-    const tokens = await api.post<TokenResponse>("/auth/login", input, { auth: false });
+    const tokens = await api.post<TokenResponse>("/auth/login", input, {
+      auth: false,
+      timeoutMs: 90_000,
+    });
     setSession(tokens);
     return tokens;
   },

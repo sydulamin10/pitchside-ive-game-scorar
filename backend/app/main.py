@@ -32,7 +32,7 @@ from app.core.middleware import (
 )
 from app.db.migrate import upgrade_to_head
 from app.db.redis import close_redis, init_redis
-from app.db.session import dispose_engine
+from app.db.session import dispose_engine, keep_database_awake
 from app.realtime.broker import broker
 from app.services.media_service import local_media_root
 
@@ -100,9 +100,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception:
         logger.warning("facebook_credentials_hydrate_skipped", exc_info=True)
     await broker.start()
+    db_keepalive_stop = asyncio.Event()
+    db_keepalive_task: asyncio.Task[None] | None = None
+    if settings.DB_KEEPALIVE_SECONDS > 0 and settings.ENV != "test":
+        db_keepalive_task = asyncio.create_task(keep_database_awake(db_keepalive_stop))
     try:
         yield
     finally:
+        db_keepalive_stop.set()
+        if db_keepalive_task is not None:
+            db_keepalive_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await db_keepalive_task
         await broker.stop()
         await close_redis()
         await dispose_engine()

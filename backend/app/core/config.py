@@ -111,6 +111,12 @@ class Settings(BaseSettings):
     DB_POOL_PRE_PING: bool = True
     DB_STATEMENT_TIMEOUT_MS: int = Field(default=15_000, ge=1_000)
     DB_ECHO: bool = False
+    #: Neon compute can take >10s to start after scale-to-zero.
+    DB_CONNECT_TIMEOUT_SECONDS: int = Field(default=20, ge=3, le=60)
+    #: How many times a request retries a sleeping / unreachable database.
+    DB_CONNECT_ATTEMPTS: int = Field(default=6, ge=1, le=12)
+    #: Ping the database this often (seconds) so Neon does not suspend. 0 = off.
+    DB_KEEPALIVE_SECONDS: int = Field(default=180, ge=0, le=3_600)
 
     # ---------------------------------------------------------------- redis
     #: Upstash: rediss://default:<password>@<host>:<port>

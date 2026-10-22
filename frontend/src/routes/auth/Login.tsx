@@ -29,10 +29,15 @@ export function Login() {
         destination !== "/app" ? destination : role === "admin" ? "/app/admin" : "/app";
       void navigate(next, { replace: true });
     } catch (cause) {
+      const dbSleeping =
+        cause instanceof ApiError &&
+        (cause.code === "database_unavailable" || cause.code === "upstream_unavailable");
       setError(
-        cause instanceof ApiError
-          ? cause.message
-          : "Could not sign in. Please check your connection.",
+        dbSleeping
+          ? "The database is still starting. Wait a few seconds and tap Log in again."
+          : cause instanceof ApiError
+            ? cause.message
+            : "Could not sign in. Please check your connection.",
       );
     } finally {
       setBusy(false);

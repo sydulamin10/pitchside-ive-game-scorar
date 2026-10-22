@@ -30,6 +30,7 @@ os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 os.environ.setdefault("ALLOW_REGISTRATION", "true")
 os.environ.setdefault("AUTO_APPROVE_REGISTRATION", "true")
 os.environ.setdefault("BILLING_ENFORCE", "false")
+os.environ.setdefault("DB_KEEPALIVE_SECONDS", "0")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:5173")
 # Keep Argon2 cheap so the auth tests are not the slowest thing in the suite.
 os.environ.setdefault("ARGON2_TIME_COST", "1")

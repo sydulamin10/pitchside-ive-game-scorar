@@ -261,6 +261,17 @@ function canRetryRequest(method: string, path: string, error: ApiError): boolean
   return path.startsWith("/auth/");
 }
 
+function retryLimit(path: string, error: ApiError): number {
+  if (error.code === "database_unavailable" || error.code === "upstream_unavailable") return 6;
+  if (path.startsWith("/auth/")) return 4;
+  return 3;
+}
+
+function retryDelayMs(error: ApiError, attempt: number): number {
+  const base = error.code === "database_unavailable" ? 1_500 : 500;
+  return Math.min(8_000, base * 2 ** (attempt - 1));
+}
+
 async function sendOnce<T>(
   path: string,
   options: RequestOptions,
@@ -317,16 +328,18 @@ async function sendOnce<T>(
 async function send<T>(path: string, options: RequestOptions, retryOn401: boolean): Promise<T> {
   const method = options.method ?? "GET";
   let last: unknown;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 6; attempt++) {
     try {
       return await sendOnce<T>(path, options, retryOn401);
     } catch (cause) {
       last = cause;
       if (options.signal?.aborted) throw cause;
-      if (!(cause instanceof ApiError) || !canRetryRequest(method, path, cause) || attempt === 3) {
+      if (!(cause instanceof ApiError) || !canRetryRequest(method, path, cause)) {
         throw cause;
       }
-      await sleep(500 * 2 ** (attempt - 1));
+      const limit = retryLimit(path, cause);
+      if (attempt >= limit) throw cause;
+      await sleep(retryDelayMs(cause, attempt));
     }
   }
   throw last instanceof Error
