@@ -184,6 +184,11 @@ def app_error_for_db(exc: DBAPIError) -> AppError:
             "The scoring database is being updated. Wait a few seconds and try again.",
             code="schema_outdated",
         )
+    if "exceeded the quota" in detail or "upgrade your plan" in detail:
+        return ServiceUnavailable(
+            "The database plan is paused. Please retry in a moment.",
+            code="database_unavailable",
+        )
     if isinstance(exc, OperationalError) or (sqlstate or "").startswith("08"):
         return ServiceUnavailable(
             "The database is waking up or unreachable. Please retry.",

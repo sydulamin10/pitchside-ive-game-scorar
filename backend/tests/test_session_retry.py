@@ -32,6 +32,15 @@ def test_integrity_errors_are_not_retried() -> None:
     assert not is_transient_db_error(exc)
 
 
+def test_neon_quota_is_not_retried() -> None:
+    exc = OperationalError(
+        "connect",
+        {},
+        Exception("ERROR:  Your account or project has exceeded the quota. Upgrade your plan to increase limits."),
+    )
+    assert not is_transient_db_error(exc)
+
+
 async def test_open_session_retries_then_succeeds(monkeypatch) -> None:
     calls = {"n": 0}
 

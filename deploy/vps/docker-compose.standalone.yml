@@ -2,6 +2,32 @@
 name: odcc
 
 services:
+  db:
+    image: postgres:17-alpine
+    container_name: odcc-db
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      POSTGRES_USER: odcc
+      POSTGRES_DB: odcc
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      proxy:
+        aliases:
+          - odcc-db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odcc -d odcc"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   api:
     build:
       context: ./backend
@@ -15,6 +41,9 @@ services:
       - ./media:/app/media
     ports:
       - "127.0.0.1:8100:8000"
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       proxy:
         aliases:
@@ -71,3 +100,6 @@ services:
 networks:
   proxy:
     name: odcc_proxy
+
+volumes:
+  pgdata:

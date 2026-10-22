@@ -52,13 +52,15 @@ _TRANSIENT_DETAIL = (
 
 def is_transient_db_error(exc: BaseException) -> bool:
     """True when retrying is likely to succeed (Neon cold start, dropped socket)."""
+    orig = getattr(exc, "orig", None)
+    detail = str(orig or exc).lower()
+    if "exceeded the quota" in detail or "upgrade your plan" in detail:
+        return False
     if isinstance(exc, OperationalError):
         return True
-    orig = getattr(exc, "orig", None)
     sqlstate = str(getattr(orig, "sqlstate", "") or "")
     if sqlstate.startswith("08"):
         return True
-    detail = str(orig or exc).lower()
     return any(needle in detail for needle in _TRANSIENT_DETAIL)
 
 
