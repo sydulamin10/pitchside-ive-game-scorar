@@ -49,9 +49,18 @@ class UserOut(ORMSchema):
 
 
 class RegisterPendingResponse(Schema):
-    pending_approval: bool = True
+    pending_approval: bool = False
+    pending_verification: bool = False
     message: str
     user: UserOut
+
+
+class VerifyEmailRequest(Schema):
+    token: Annotated[str, StringConstraints(min_length=16, max_length=2048)]
+
+
+class ResendVerificationRequest(Schema):
+    email: EmailStr
 
 
 class TokenResponse(Schema):

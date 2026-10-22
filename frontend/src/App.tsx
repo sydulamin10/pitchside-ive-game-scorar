@@ -10,6 +10,7 @@ import { useAuth } from "@/store/auth";
 import { Home } from "@/routes/marketing/Home";
 import { Login } from "@/routes/auth/Login";
 import { Register } from "@/routes/auth/Register";
+import { VerifyEmail } from "@/routes/auth/VerifyEmail";
 import { NotFound } from "@/routes/NotFound";
 
 // The scoring console and the ledger pages are the heaviest screens in the app
@@ -105,6 +106,7 @@ export function App() {
             <Route path="/install" element={<InstallApp />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/features/score" element={<ScoreFeature />} />
             <Route path="/features/tournament" element={<TournamentFeature />} />
             <Route path="/broadcast" element={<Broadcast />} />

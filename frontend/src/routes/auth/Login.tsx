@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
 import { Panel, Seam } from "@/components/ui/Surface";
 import { ApiError } from "@/lib/api/client";
+import { auth } from "@/lib/api/endpoints";
 import { useAuth } from "@/store/auth";
 
 export function Login() {
@@ -17,11 +18,15 @@ export function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [needsVerify, setNeedsVerify] = useState(false);
+  const [resent, setResent] = useState<string | null>(null);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
+    setNeedsVerify(false);
+    setResent(null);
     try {
       await login(email.trim(), password);
       const role = useAuth.getState().user?.role;
@@ -32,6 +37,8 @@ export function Login() {
       const dbSleeping =
         cause instanceof ApiError &&
         (cause.code === "database_unavailable" || cause.code === "upstream_unavailable");
+      const unverified = cause instanceof ApiError && cause.code === "email_not_verified";
+      setNeedsVerify(unverified);
       setError(
         dbSleeping
           ? "The database is still starting. Wait a few seconds and tap Log in again."
@@ -77,9 +84,40 @@ export function Login() {
               {error}
             </p>
           )}
+          {resent && (
+            <p className="font-sans text-sm text-willow-soft" role="status">
+              {resent}
+            </p>
+          )}
           <Button type="submit" loading={busy} fullWidth size="lg">
             Log in
           </Button>
+          {needsVerify && (
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth
+              disabled={busy || !email.trim()}
+              onClick={async () => {
+                setBusy(true);
+                setResent(null);
+                try {
+                  const result = await auth.resendVerification(email.trim());
+                  setResent(result.message);
+                } catch (cause) {
+                  setError(
+                    cause instanceof ApiError
+                      ? cause.message
+                      : "Could not send another link. Try again shortly.",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Resend verification email
+            </Button>
+          )}
         </form>
       </Panel>
 

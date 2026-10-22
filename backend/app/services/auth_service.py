@@ -28,6 +28,8 @@ from app.core.errors import Conflict, Forbidden, Unauthorized
 from app.core.logging import get_logger
 from app.core.security import (
     create_access_token,
+    create_signed_token,
+    decode_signed_token,
     generate_refresh_token,
     hash_opaque_token,
     hash_password,
@@ -35,6 +37,7 @@ from app.core.security import (
     validate_password_strength,
     verify_password,
 )
+from app.services import email_service
 from app.models.enums import AuditAction
 from app.models.user import RefreshToken, User
 from app.schemas.auth import RegisterRequest
@@ -142,6 +145,12 @@ async def authenticate(
             code="account_pending_approval",
         )
 
+    if settings.EMAIL_VERIFY_REQUIRED and not user.is_email_verified and not user.is_admin:
+        raise Forbidden(
+            "Confirm the link we sent to your email before signing in.",
+            code="email_not_verified",
+        )
+
     if password_needs_rehash(user.password_hash):
         user.password_hash = hash_password(password)
 
@@ -239,6 +248,11 @@ async def rotate_refresh_token(
             "This account is waiting for admin approval. You cannot log in yet.",
             code="account_pending_approval",
         )
+    if settings.EMAIL_VERIFY_REQUIRED and not user.is_email_verified and not user.is_admin:
+        raise Forbidden(
+            "Confirm the link we sent to your email before signing in.",
+            code="email_not_verified",
+        )
 
     issued = await issue_tokens(session, user, request=request, family_id=record.family_id)
     record.revoked_at = now
@@ -315,6 +329,42 @@ async def list_sessions(session: AsyncSession, user_id: uuid.UUID) -> list[Refre
         .order_by(RefreshToken.created_at.desc())
     )
     return list(result.scalars())
+
+
+async def send_verification_email(user: User) -> bool:
+    token = create_signed_token(
+        subject=str(user.id),
+        purpose="email_verify",
+        ttl_seconds=settings.EMAIL_VERIFY_TTL_SECONDS,
+    )
+    return await email_service.send_verification_email(
+        to_email=user.email,
+        display_name=user.display_name,
+        verify_url=settings.public_verify_email_url(token),
+    )
+
+
+async def verify_email_token(session: AsyncSession, token: str) -> User:
+    claims = decode_signed_token(token, purpose="email_verify")
+    try:
+        user_id = uuid.UUID(str(claims.get("sub") or ""))
+    except ValueError as exc:
+        raise Unauthorized("Invalid or expired link.", code="invalid_token") from exc
+    user = await session.get(User, user_id)
+    if user is None or not user.is_active:
+        raise Unauthorized("Invalid or expired link.", code="invalid_token")
+    user.is_email_verified = True
+    return user
+
+
+async def resend_verification_email(session: AsyncSession, email: str) -> None:
+    normalised = email.strip().lower()
+    user = (
+        await session.execute(select(User).where(func.lower(User.email) == normalised).limit(1))
+    ).scalar_one_or_none()
+    if user is None or user.is_email_verified or not user.is_active:
+        return
+    await send_verification_email(user)
 
 
 # -------------------------------------------------------------------- internals

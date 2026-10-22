@@ -14,8 +14,10 @@ from app.schemas.auth import (
     RefreshRequest,
     RegisterPendingResponse,
     RegisterRequest,
+    ResendVerificationRequest,
     TokenResponse,
     UserOut,
+    VerifyEmailRequest,
 )
 from app.schemas.common import Message
 from app.services import audit_service, auth_service
@@ -83,16 +85,50 @@ async def register(
     session: SessionDep,
 ) -> TokenResponse | RegisterPendingResponse:
     user = await auth_service.register(session, payload, request=request)
-    if not user.is_approved and not user.is_admin:
+    await auth_service.send_verification_email(user)
+    needs_verification = settings.EMAIL_VERIFY_REQUIRED and not user.is_email_verified
+    needs_approval = not user.is_approved and not user.is_admin
+    if needs_verification or needs_approval:
         await session.commit()
+        if needs_verification:
+            message = (
+                "Account created. Check your email and open the verification link before you log in."
+            )
+        else:
+            message = "Account created. An administrator must approve it before you can log in."
         return RegisterPendingResponse(
-            message="Account created. An administrator must approve it before you can log in.",
+            pending_approval=needs_approval,
+            pending_verification=needs_verification,
+            message=message,
             user=UserOut.model_validate(user),
         )
     issued = await auth_service.issue_tokens(session, user, request=request)
     await session.commit()
     _set_refresh_cookie(response, issued.refresh_token, settings.REFRESH_TOKEN_TTL_SECONDS)
     return _token_response(UserOut.model_validate(user), issued)
+
+
+@router.post(
+    "/verify-email",
+    response_model=Message,
+    dependencies=[Depends(RateLimit("verify_email", 20, 3600))],
+    summary="Confirm an email address from the mailed link",
+)
+async def verify_email(payload: VerifyEmailRequest, session: SessionDep) -> Message:
+    await auth_service.verify_email_token(session, payload.token)
+    await session.commit()
+    return Message(message="Email confirmed. You can log in now.")
+
+
+@router.post(
+    "/resend-verification",
+    response_model=Message,
+    dependencies=[Depends(RateLimit("resend_verification", 5, 3600))],
+    summary="Send another verification link",
+)
+async def resend_verification(payload: ResendVerificationRequest, session: SessionDep) -> Message:
+    await auth_service.resend_verification_email(session, payload.email)
+    return Message(message="If that account needs confirming, we sent a new link.")
 
 
 @router.post(

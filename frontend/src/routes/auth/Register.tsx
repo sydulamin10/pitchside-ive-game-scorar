@@ -18,6 +18,7 @@ export function Register() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
+  const [pendingKind, setPendingKind] = useState<"email" | "approval">("approval");
 
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }));
@@ -35,9 +36,13 @@ export function Register() {
       });
       if (result.pending) {
         setPending(
-          result.message ||
-            "Account created. An administrator must approve it before you can log in.",
+          result.reason === "email"
+            ? result.message ||
+                "Account created. Check your email and open the verification link before you log in."
+            : result.message ||
+                "Account created. An administrator must approve it before you can log in.",
         );
+        setPendingKind(result.reason === "email" ? "email" : "approval");
         return;
       }
       void navigate("/app", { replace: true });
@@ -65,7 +70,9 @@ export function Register() {
         <Panel className="p-5">
           <p className="font-sans text-sm text-chalk">{pending}</p>
           <p className="mt-2 font-sans text-sm text-willow-soft">
-            You will be able to log in after an administrator turns the account on.
+            {pendingKind === "email"
+              ? "If it is not in your inbox, check spam, then use Resend from the login page."
+              : "You will be able to log in after an administrator turns the account on."}
           </p>
           <div className="mt-4">
             <Link to="/login" className="text-flip underline underline-offset-4">

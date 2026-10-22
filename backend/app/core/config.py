@@ -10,7 +10,7 @@ from __future__ import annotations
 import secrets
 from functools import lru_cache
 from typing import Annotated, Literal
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from pydantic import (
     AnyHttpUrl,
@@ -92,6 +92,16 @@ class Settings(BaseSettings):
     ALLOW_REGISTRATION: bool = True
     #: When false, a new account cannot sign in until an admin approves it.
     AUTO_APPROVE_REGISTRATION: bool = False
+    #: When true, login waits until the user clicks the email verification link.
+    EMAIL_VERIFY_REQUIRED: bool = False
+    EMAIL_VERIFY_TTL_SECONDS: int = Field(default=86_400, ge=300, le=7 * 86_400)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = Field(default=587, ge=1, le=65_535)
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: SecretStr | None = None
+    SMTP_FROM_NAME: str = "ODCC LIVE"
+    SMTP_FROM_EMAIL: str | None = None
+    SMTP_STARTTLS: bool = True
     #: When false, live-broadcast plan limits are not enforced (tests).
     BILLING_ENFORCE: bool = True
 
@@ -299,6 +309,15 @@ class Settings(BaseSettings):
 
     def public_camera_url(self, match_slug: str, token: str) -> str:
         return f"{self.PUBLIC_WEB_URL.rstrip('/')}/s/{match_slug}/camera/{token}"
+
+    def public_verify_email_url(self, token: str) -> str:
+        return f"{self.PUBLIC_WEB_URL.rstrip('/')}/verify-email?token={quote(token, safe='')}"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def smtp_configured(self) -> bool:
+        password = self.SMTP_PASSWORD.get_secret_value() if self.SMTP_PASSWORD else ""
+        return bool((self.SMTP_USERNAME or "").strip() and password.strip())
 
     @computed_field  # type: ignore[prop-decorator]
     @property

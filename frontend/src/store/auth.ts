@@ -22,7 +22,7 @@ interface AuthState {
     email: string;
     password: string;
     display_name: string;
-  }) => Promise<{ pending: boolean; message?: string }>;
+  }) => Promise<{ pending: boolean; reason?: "email" | "approval"; message?: string }>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
 }
@@ -60,9 +60,13 @@ export const useAuth = create<AuthState>((set) => ({
       ...input,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     });
+    if ("pending_verification" in result && result.pending_verification) {
+      set({ user: null, status: "guest" });
+      return { pending: true, reason: "email", message: result.message };
+    }
     if ("pending_approval" in result && result.pending_approval) {
       set({ user: null, status: "guest" });
-      return { pending: true, message: result.message };
+      return { pending: true, reason: "approval", message: result.message };
     }
     if ("user" in result && result.user && "access_token" in result) {
       set({ user: result.user, status: "authenticated" });

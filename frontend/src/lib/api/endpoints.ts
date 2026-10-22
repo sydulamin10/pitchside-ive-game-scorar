@@ -35,6 +35,7 @@ import type {
   Team,
   TeamMembership,
   TokenResponse,
+  RegisterPendingResponse,
   Tournament,
   TournamentFormat,
   User,
@@ -74,13 +75,16 @@ export const auth = {
     password: string;
     display_name: string;
     timezone?: string;
-  }): Promise<TokenResponse | { pending_approval: true; message: string; user: User }> {
-    const tokens = await api.post<TokenResponse | { pending_approval: true; message: string; user: User }>(
+  }): Promise<TokenResponse | RegisterPendingResponse> {
+    const tokens = await api.post<TokenResponse | RegisterPendingResponse>(
       "/auth/register",
       input,
       { auth: false },
     );
-    if ("pending_approval" in tokens && tokens.pending_approval) {
+    if (
+      ("pending_approval" in tokens && tokens.pending_approval) ||
+      ("pending_verification" in tokens && tokens.pending_verification)
+    ) {
       return tokens;
     }
     if ("access_token" in tokens && tokens.access_token) {
@@ -88,6 +92,12 @@ export const auth = {
     }
     return tokens;
   },
+
+  verifyEmail: (token: string) =>
+    api.post<Message>("/auth/verify-email", { token }, { auth: false }),
+
+  resendVerification: (email: string) =>
+    api.post<Message>("/auth/resend-verification", { email }, { auth: false }),
 
   async login(input: { email: string; password: string }): Promise<TokenResponse> {
     const tokens = await api.post<TokenResponse>("/auth/login", input, {

@@ -117,6 +117,13 @@ export interface TokenResponse {
   user: User;
 }
 
+export interface RegisterPendingResponse {
+  pending_approval?: boolean;
+  pending_verification?: boolean;
+  message: string;
+  user: User;
+}
+
 export type BillingPlanId = "free" | "live_match" | "pro" | "tournament";
 
 export interface BillingAccount {
