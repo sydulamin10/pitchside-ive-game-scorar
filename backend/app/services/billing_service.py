@@ -455,12 +455,15 @@ async def list_users(
     *,
     query: str | None = None,
     pending_only: bool = False,
+    unverified_only: bool = False,
     limit: int = 50,
     offset: int = 0,
 ) -> list[User]:
     stmt = select(User).order_by(User.created_at.desc()).limit(limit).offset(offset)
     if pending_only:
         stmt = stmt.where(User.is_approved.is_(False), User.role == UserRole.USER)
+    if unverified_only:
+        stmt = stmt.where(User.is_email_verified.is_(False), User.role == UserRole.USER)
     if query:
         needle = f"%{query.strip().lower()}%"
         stmt = stmt.where(
@@ -487,6 +490,28 @@ async def set_approved(
         entity_type="user",
         entity_id=user.id,
     )
+    await session.flush()
+    return user
+
+
+async def set_active(session: AsyncSession, admin: User, user_id: uuid.UUID, active: bool) -> User:
+    user = await session.get(User, user_id)
+    if user is None:
+        raise NotFound("That account does not exist.", code="user_not_found")
+    if user.is_admin:
+        raise Forbidden("Administrator accounts stay active.", code="admin_always_active")
+    user.is_active = active
+    if not active:
+        await auth_service.revoke_all_sessions(session, user.id, reason="suspended")
+    await session.flush()
+    return user
+
+
+async def mark_email_verified(session: AsyncSession, admin: User, user_id: uuid.UUID) -> User:
+    user = await session.get(User, user_id)
+    if user is None:
+        raise NotFound("That account does not exist.", code="user_not_found")
+    user.is_email_verified = True
     await session.flush()
     return user
 
@@ -553,12 +578,14 @@ def billing_user_payload(user: User, entitlement: Entitlement) -> dict[str, Any]
         "display_name": user.display_name,
         "role": user.role.value,
         "is_approved": user.is_approved or user.is_admin,
+        "is_email_verified": user.is_email_verified or user.is_admin,
         "is_active": user.is_active,
         "created_at": user.created_at,
         "last_login_at": user.last_login_at,
         "live_credits": entitlement.live_credits,
         "pro_until": entitlement.pro_until,
         "can_go_live": entitlement.can_go_live,
+        "team_names": [team.name for team in user.teams if team.deleted_at is None],
     }
 
 

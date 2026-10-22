@@ -132,12 +132,14 @@ export interface BillingAccount {
   display_name: string;
   role: string;
   is_approved: boolean;
+  is_email_verified?: boolean;
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
   live_credits: number;
   pro_until: string | null;
   can_go_live: boolean;
+  team_names?: string[];
 }
 
 export interface BillingEntitlement {
@@ -387,6 +389,8 @@ export interface AdminOverview {
     live_matches: number;
     active_tournaments: number;
     active_pro_subscribers: number;
+    unverified_users?: number;
+    pending_approvals?: number;
     pending_topups: number;
     pending_coupon_requests: number;
     open_support_requests: number;
@@ -399,6 +403,7 @@ export interface AdminOverview {
     display_name: string;
     role: string;
     is_approved: boolean;
+    is_email_verified?: boolean;
     created_at: string;
   }>;
 }

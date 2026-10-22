@@ -195,7 +195,11 @@ export function AppShell() {
       <main
         className={cn(
           "mx-auto w-full max-w-6xl flex-1",
-          scoringScreen ? "px-3 py-3 sm:px-4 sm:py-4" : "px-4 py-6",
+          scoringScreen
+            ? "px-3 py-3 sm:px-4 sm:py-4"
+            : location.pathname.startsWith("/app/admin")
+              ? "max-w-7xl px-3 py-4 sm:px-4"
+              : "px-4 py-6",
         )}
       >
         <Outlet />

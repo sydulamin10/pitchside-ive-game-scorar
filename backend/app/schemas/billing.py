@@ -111,16 +111,22 @@ class BillingUserOut(Schema):
     display_name: str
     role: str
     is_approved: bool
+    is_email_verified: bool = False
     is_active: bool
     created_at: datetime
     last_login_at: datetime | None
     live_credits: int
     pro_until: datetime | None
     can_go_live: bool
+    team_names: list[str] = Field(default_factory=list)
 
 
 class ApprovalUpdate(Schema):
     is_approved: bool
+
+
+class ActiveUpdate(Schema):
+    is_active: bool
 
 
 class CreditGrant(Schema):

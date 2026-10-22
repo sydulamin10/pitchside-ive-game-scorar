@@ -12,6 +12,7 @@ from app.api.deps import AdminUser, CurrentUser, PaginationDep, SessionDep
 from app.models.billing import Payment
 from app.models.enums import BillingPlan
 from app.schemas.billing import (
+    ActiveUpdate,
     ApprovalUpdate,
     BillingUserOut,
     CouponCreate,
@@ -24,8 +25,10 @@ from app.schemas.billing import (
     QuoteOut,
     QuoteRequest,
 )
+from app.core.errors import NotFound
+from app.models.user import User
 from app.schemas.common import Message
-from app.services import billing_service
+from app.services import auth_service, billing_service
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -61,9 +64,15 @@ async def billing_users(
     pagination: PaginationDep,
     q: str | None = Query(default=None, max_length=80),
     pending: bool = False,
+    unverified: bool = False,
 ) -> list[BillingUserOut]:
     users = await billing_service.list_users(
-        session, query=q, pending_only=pending, limit=pagination.limit, offset=pagination.offset
+        session,
+        query=q,
+        pending_only=pending,
+        unverified_only=unverified,
+        limit=pagination.limit,
+        offset=pagination.offset,
     )
     out: list[BillingUserOut] = []
     for user in users:
@@ -88,6 +97,46 @@ async def set_approval(
     await session.commit()
     await session.refresh(user)
     return await _user_out(session, user)
+
+
+@router.patch("/users/{user_id}/active", response_model=BillingUserOut)
+async def set_active(
+    user_id: uuid.UUID,
+    payload: ActiveUpdate,
+    session: SessionDep,
+    admin: AdminUser,
+) -> BillingUserOut:
+    user = await billing_service.set_active(session, admin, user_id, payload.is_active)
+    await session.commit()
+    await session.refresh(user)
+    return await _user_out(session, user)
+
+
+@router.post("/users/{user_id}/verify-email", response_model=BillingUserOut)
+async def mark_verified(
+    user_id: uuid.UUID,
+    session: SessionDep,
+    admin: AdminUser,
+) -> BillingUserOut:
+    user = await billing_service.mark_email_verified(session, admin, user_id)
+    await session.commit()
+    await session.refresh(user)
+    return await _user_out(session, user)
+
+
+@router.post("/users/{user_id}/resend-verification", response_model=Message)
+async def admin_resend_verification(
+    user_id: uuid.UUID,
+    session: SessionDep,
+    _admin: AdminUser,
+) -> Message:
+    target = await session.get(User, user_id)
+    if target is None:
+        raise NotFound("That account does not exist.", code="user_not_found")
+    if target.is_email_verified:
+        return Message(message="That account is already verified.")
+    await auth_service.send_verification_email(target)
+    return Message(message="Verification email sent.")
 
 
 @router.post("/users/{user_id}/credits", response_model=BillingUserOut)

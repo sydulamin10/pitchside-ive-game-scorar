@@ -20,12 +20,14 @@ export function OverviewPanel() {
   }
 
   const cards: Array<[string, string | number]> = [
-    ["Users", totals.users],
-    ["Teams", totals.teams],
-    ["Matches", totals.matches],
-    ["Live now", totals.live_matches],
-    ["Tournaments", totals.active_tournaments],
-    ["Pro accounts", totals.active_pro_subscribers],
+    ["Total users", totals.users],
+    ["Unverified email", totals.unverified_users ?? 0],
+    ["Pending approval", totals.pending_approvals ?? 0],
+    ["Total teams", totals.teams],
+    ["Total matches", totals.matches],
+    ["Live matches", totals.live_matches],
+    ["Active tournaments", totals.active_tournaments],
+    ["Active PRO", totals.active_pro_subscribers],
     ["Pending top-ups", totals.pending_topups ?? 0],
     ["Coupon requests", totals.pending_coupon_requests ?? 0],
     ["Open support", totals.open_support_requests ?? 0],

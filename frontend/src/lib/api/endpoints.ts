@@ -592,6 +592,47 @@ export const admin = {
   overview: () => api.get<AdminOverview>("/admin/overview"),
   matches: (params: { status?: MatchStatus; limit?: number } = {}) =>
     api.get<MatchListItem[]>("/admin/matches", { query: { ...params } }),
+  teams: (params: { limit?: number } = {}) =>
+    api.get<
+      Array<{
+        id: string;
+        name: string;
+        logo_url: string | null;
+        home_ground: string | null;
+        manager_name: string | null;
+        owner_name: string | null;
+        owner_email: string | null;
+        player_count: number;
+        public_slug: string | null;
+        created_at: string;
+      }>
+    >("/admin/teams", { query: { ...params } }),
+  tournaments: (params: { limit?: number } = {}) =>
+    api.get<
+      Array<{
+        id: string;
+        name: string;
+        public_slug: string;
+        logo_url: string | null;
+        tournament_format: string;
+        status: string;
+        venue: string | null;
+        start_date: string | null;
+        created_at: string;
+      }>
+    >("/admin/tournaments", { query: { ...params } }),
+  settings: () =>
+    api.get<{
+      website_name: string;
+      public_web_url: string;
+      email_verify_required: boolean;
+      smtp_configured: boolean;
+      smtp_host: string;
+      smtp_from: string | null;
+      currency: string;
+    }>("/admin/settings"),
+  sendSupportEmail: (input: { to: string; subject: string; body: string }) =>
+    api.post<Message>("/admin/support/email", input),
   patchOverlay: (id: string, input: Partial<OverlayDirector>) =>
     api.patch<OverlayDirector>(`/admin/matches/${id}/overlay`, input),
   facebookSettings: () => api.get<FacebookAppSettings>("/admin/settings/facebook"),
@@ -647,10 +688,15 @@ export const account = {
 
 export const billing = {
   entitlement: () => api.get<BillingEntitlement>("/billing/entitlement"),
-  users: (params: { q?: string; pending?: boolean; limit?: number; offset?: number } = {}) =>
+  users: (params: { q?: string; pending?: boolean; unverified?: boolean; limit?: number; offset?: number } = {}) =>
     api.get<BillingAccount[]>("/billing/users", { query: { ...params } }),
   setApproval: (userId: string, is_approved: boolean) =>
     api.patch<BillingAccount>(`/billing/users/${userId}/approval`, { is_approved }),
+  setActive: (userId: string, is_active: boolean) =>
+    api.patch<BillingAccount>(`/billing/users/${userId}/active`, { is_active }),
+  markVerified: (userId: string) => api.post<BillingAccount>(`/billing/users/${userId}/verify-email`, {}),
+  resendVerification: (userId: string) =>
+    api.post<Message>(`/billing/users/${userId}/resend-verification`, {}),
   grantCredits: (userId: string, input: { credits: number; mode?: "add" | "set"; note?: string | null }) =>
     api.post<BillingAccount>(`/billing/users/${userId}/credits`, input),
   plans: () => api.get<BillingPlanInfo[]>("/billing/plans"),

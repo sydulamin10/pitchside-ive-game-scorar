@@ -69,3 +69,14 @@ async def send_verification_email(*, to_email: str, display_name: str, verify_ur
         return False
     logger.info("verification_email_sent")
     return True
+
+
+async def send_plain_email(*, to_email: str, subject: str, text: str) -> bool:
+    html_body = "".join(f"<p>{html.escape(part)}</p>" for part in text.split("\n\n") if part.strip())
+    try:
+        await asyncio.to_thread(_send_message, to_email, subject, text, html_body or f"<p>{html.escape(text)}</p>")
+    except Exception:
+        logger.warning("plain_email_failed", exc_info=True)
+        return False
+    logger.info("plain_email_sent")
+    return True

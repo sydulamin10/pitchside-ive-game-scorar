@@ -19,6 +19,7 @@ from app.models.enums import (
     RequestStatus,
     SupportStatus,
     TournamentStatus,
+    UserRole,
 )
 from app.models.match import Match
 from app.models.team import Team
@@ -74,6 +75,18 @@ async def dashboard(session: AsyncSession) -> dict[str, Any]:
             Payment.note.is_distinct_from(billing_service.GRANDFATHER_NOTE),
         ),
     )
+    unverified_users = await _count(
+        session,
+        select(func.count())
+        .select_from(User)
+        .where(User.is_email_verified.is_(False), User.role == UserRole.USER),
+    )
+    pending_approvals = await _count(
+        session,
+        select(func.count())
+        .select_from(User)
+        .where(User.is_approved.is_(False), User.role == UserRole.USER),
+    )
     pending_topups = await _count(
         session,
         select(func.count())
@@ -120,6 +133,8 @@ async def dashboard(session: AsyncSession) -> dict[str, Any]:
             "live_matches": live_matches,
             "active_tournaments": active_tournaments,
             "active_pro_subscribers": active_pro,
+            "unverified_users": unverified_users,
+            "pending_approvals": pending_approvals,
             "pending_topups": pending_topups,
             "pending_coupon_requests": pending_coupon_requests,
             "open_support_requests": open_support_requests,
@@ -140,6 +155,7 @@ async def dashboard(session: AsyncSession) -> dict[str, Any]:
                 "display_name": row.display_name,
                 "role": row.role.value,
                 "is_approved": row.is_approved or row.is_admin,
+                "is_email_verified": row.is_email_verified or row.is_admin,
                 "created_at": row.created_at,
             }
             for row in recent_users_rows
