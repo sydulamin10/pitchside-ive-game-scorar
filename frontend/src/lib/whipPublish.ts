@@ -22,13 +22,28 @@ export interface WhipPublisherOptions {
   maxAttempts?: number;
 }
 
+export interface WhipPublishTuning {
+  /** Target video ceiling (bps). Default 2.5 Mbps (720p30 cricket). */
+  maxVideoBitrateBps?: number;
+  /** Target framerate. Default 30. */
+  maxFramerate?: number;
+  /** Target audio bitrate (bps). Default 128 kbps. */
+  maxAudioBitrateBps?: number;
+}
+
 export interface WhipPublisher {
-  start(stream: MediaStream, whipUrl: string): Promise<void>;
+  start(stream: MediaStream, whipUrl: string, tuning?: WhipPublishTuning): Promise<void>;
   stop(): Promise<void>;
   /** Tear down and publish again (e.g. after flip / recovery). */
-  restart(stream: MediaStream, whipUrl: string): Promise<void>;
+  restart(stream: MediaStream, whipUrl: string, tuning?: WhipPublishTuning): Promise<void>;
   getStatus(): WhipStatus;
   onStatus(listener: WhipStatusListener): () => void;
+}
+
+export function videoBitrateForHeight(height: number): number {
+  if (height >= 1080) return 3_800_000;
+  if (height <= 480) return 1_400_000;
+  return 2_500_000;
 }
 
 function normalizeWhipUrl(url: string): string {
@@ -68,8 +83,16 @@ function waitIceComplete(pc: RTCPeerConnection, timeoutMs = 8_000): Promise<void
 function preferH264(connection: RTCPeerConnection): void {
   const caps = RTCRtpSender.getCapabilities?.("video");
   if (!caps?.codecs?.length) return;
+  const h264 = caps.codecs.filter((c) => c.mimeType.toLowerCase() === "video/h264");
+  const constrained = h264.filter((c) =>
+    (c.sdpFmtpLine ?? "").toLowerCase().includes("42e01f"),
+  );
+  const otherH264 = h264.filter(
+    (c) => !(c.sdpFmtpLine ?? "").toLowerCase().includes("42e01f"),
+  );
   const preferred = [
-    ...caps.codecs.filter((c) => c.mimeType.toLowerCase() === "video/h264"),
+    ...constrained,
+    ...otherH264,
     ...caps.codecs.filter((c) => c.mimeType.toLowerCase() !== "video/h264"),
   ];
   for (const transceiver of connection.getTransceivers()) {
@@ -79,6 +102,41 @@ function preferH264(connection: RTCPeerConnection): void {
       } catch {
         /* Safari may reject mixed codec lists */
       }
+    }
+  }
+}
+
+async function tuneRtpSenders(
+  connection: RTCPeerConnection,
+  tuning: WhipPublishTuning = {},
+): Promise<void> {
+  const maxVideoBitrate = tuning.maxVideoBitrateBps ?? 2_500_000;
+  const maxFramerate = tuning.maxFramerate ?? 30;
+  const maxAudioBitrate = tuning.maxAudioBitrateBps ?? 128_000;
+  for (const sender of connection.getSenders()) {
+    if (typeof sender.getParameters !== "function" || typeof sender.setParameters !== "function") {
+      continue;
+    }
+    const kind = sender.track?.kind;
+    if (kind !== "video" && kind !== "audio") continue;
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings?.length) params.encodings = [{}];
+      if (kind === "video") {
+        params.degradationPreference = "maintain-framerate";
+        for (const enc of params.encodings) {
+          enc.maxBitrate = maxVideoBitrate;
+          enc.maxFramerate = maxFramerate;
+          enc.scaleResolutionDownBy = 1;
+        }
+      } else {
+        for (const enc of params.encodings) {
+          enc.maxBitrate = maxAudioBitrate;
+        }
+      }
+      await sender.setParameters(params);
+    } catch {
+      /* Older mobile browsers ignore unsupported encoding fields */
     }
   }
 }
@@ -135,9 +193,11 @@ export function createWhipPublisher(options: WhipPublisherOptions = {}): WhipPub
   let resourceUrl: string | null = null;
   let whipUrl: string | null = null;
   let mediaStream: MediaStream | null = null;
+  let lastTuning: WhipPublishTuning | undefined;
   let status: WhipStatus = "idle";
   let stopped = false;
   let reconnectTimer: number | null = null;
+  let keyframeTimer: number | null = null;
   let attempt = 0;
   const listeners = new Set<WhipStatusListener>();
 
@@ -153,8 +213,25 @@ export function createWhipPublisher(options: WhipPublisherOptions = {}): WhipPub
     }
   };
 
+  const clearKeyframes = () => {
+    if (keyframeTimer != null) {
+      window.clearInterval(keyframeTimer);
+      keyframeTimer = null;
+    }
+  };
+
+  const startKeyframeCadence = (connection: RTCPeerConnection) => {
+    clearKeyframes();
+    requestVideoKeyFrame(connection);
+    keyframeTimer = window.setInterval(() => {
+      if (stopped || pc !== connection || connection.connectionState !== "connected") return;
+      requestVideoKeyFrame(connection);
+    }, 2_000);
+  };
+
   const teardownPc = async () => {
     clearReconnect();
+    clearKeyframes();
     const session = resourceUrl;
     resourceUrl = null;
     if (session) {
@@ -187,7 +264,7 @@ export function createWhipPublisher(options: WhipPublisherOptions = {}): WhipPub
     setStatus("reconnecting", `Reconnecting in ${Math.round(delay / 1000)}s…`);
     clearReconnect();
     reconnectTimer = window.setTimeout(() => {
-      void connect(mediaStream!, whipUrl!, true);
+      void connect(mediaStream!, whipUrl!, true, lastTuning);
     }, delay);
   };
 
@@ -198,17 +275,25 @@ export function createWhipPublisher(options: WhipPublisherOptions = {}): WhipPub
       if (state === "connected") {
         attempt = 0;
         setStatus("connected");
-        requestVideoKeyFrame(connection);
+        void tuneRtpSenders(connection, lastTuning);
+        startKeyframeCadence(connection);
       } else if (state === "failed" || state === "disconnected") {
+        clearKeyframes();
         setStatus("reconnecting", "Connection lost");
         void teardownPc().then(scheduleReconnect);
       }
     };
   };
 
-  const connect = async (stream: MediaStream, url: string, isReconnect: boolean) => {
+  const connect = async (
+    stream: MediaStream,
+    url: string,
+    isReconnect: boolean,
+    tuning?: WhipPublishTuning,
+  ) => {
     if (stopped) return;
     mediaStream = stream;
+    lastTuning = tuning;
     whipUrl = normalizeWhipUrl(url);
     if (!whipUrl) {
       setStatus("failed", "No WHIP publish URL. Configure MediaMTX.");
@@ -250,9 +335,11 @@ export function createWhipPublisher(options: WhipPublisherOptions = {}): WhipPub
       const { answer, resourceUrl: resource } = await postOffer(whipUrl, localSdp);
       resourceUrl = resource;
       await connection.setRemoteDescription({ type: "answer", sdp: answer });
+      await tuneRtpSenders(connection, lastTuning);
       attempt = 0;
       if (connection.connectionState === "connected") {
         setStatus("connected");
+        startKeyframeCadence(connection);
       } else {
         setStatus("connecting", "Negotiating…");
       }
@@ -271,26 +358,28 @@ export function createWhipPublisher(options: WhipPublisherOptions = {}): WhipPub
   };
 
   return {
-    async start(stream, url) {
+    async start(stream, url, tuning) {
       stopped = false;
       attempt = 0;
-      await connect(stream, url, false);
+      await connect(stream, url, false, tuning);
     },
 
     async stop() {
       stopped = true;
       clearReconnect();
+      clearKeyframes();
       await teardownPc();
       mediaStream = null;
       whipUrl = null;
+      lastTuning = undefined;
       attempt = 0;
       setStatus("stopped");
     },
 
-    async restart(stream, url) {
+    async restart(stream, url, tuning) {
       stopped = false;
       attempt = 0;
-      await connect(stream, url, false);
+      await connect(stream, url, false, tuning);
     },
 
     getStatus() {

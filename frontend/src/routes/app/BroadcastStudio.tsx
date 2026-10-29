@@ -39,7 +39,7 @@ import type { CompactState, MatchSnapshot } from "@/lib/api/types";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
 import { copyToClipboard } from "@/lib/utils";
 import { startLivePublishStream, type OverlayCompositor } from "@/lib/broadcast/overlayCompositor";
-import { createWhipPublisher, type WhipStatus } from "@/lib/whipPublish";
+import { createWhipPublisher, videoBitrateForHeight, type WhipStatus } from "@/lib/whipPublish";
 import {
   mockOverlayState,
   TvScoreOverlay,
@@ -58,6 +58,7 @@ type StudioPrefs = {
   overlayDesign?: OverlayDesignId;
   orientation?: Orientation;
   tab?: Tab;
+  quality?: string;
 };
 
 function loadStudioPrefs(matchId: string | undefined): StudioPrefs {
@@ -96,7 +97,7 @@ export default function BroadcastStudio() {
     () => savedPrefs.overlayDesign ?? "circle",
   );
   const [zoom, setZoom] = useState(1);
-  const [quality, setQuality] = useState("480");
+  const [quality, setQuality] = useState(() => savedPrefs.quality ?? "720");
   const [destination, setDestination] = useState<SocialDestination>("facebook_page");
   const [destinationName, setDestinationName] = useState("");
   const [streamKey, setStreamKey] = useState("");
@@ -203,12 +204,13 @@ export default function BroadcastStudio() {
           overlayDesign,
           orientation,
           tab,
+          quality,
         } satisfies StudioPrefs),
       );
     } catch {
       /* ignore quota / private mode */
     }
-  }, [matchId, overlayDesign, orientation, tab]);
+  }, [matchId, overlayDesign, orientation, quality, tab]);
 
   useEffect(() => {
     void navigator.mediaDevices?.enumerateDevices().then((devices) => {
@@ -235,13 +237,25 @@ export default function BroadcastStudio() {
         const width = Math.round((height * 16) / 9);
         const face = opts?.facingMode ?? facing;
         const stream = await navigator.mediaDevices.getUserMedia({
-          audio: audioDeviceId ? { deviceId: { ideal: audioDeviceId } } : true,
+          audio: audioDeviceId
+            ? {
+                deviceId: { ideal: audioDeviceId },
+                echoCancellation: false,
+                noiseSuppression: true,
+                autoGainControl: true,
+              }
+            : {
+                echoCancellation: false,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
           video: {
             ...(videoDeviceId
               ? { deviceId: { ideal: videoDeviceId } }
               : { facingMode: { ideal: face } }),
             width: { ideal: width },
             height: { ideal: height },
+            frameRate: { ideal: 30, max: 30 },
           },
         });
         streamRef.current = stream;
@@ -303,13 +317,20 @@ export default function BroadcastStudio() {
       const whipUrl = ensured.whip_publish_url;
       const stream = streamRef.current;
       const video = videoRef.current;
+      const shortSide = quality === "720" ? 720 : quality === "1080" ? 1080 : 480;
+      const tuning = {
+        maxVideoBitrateBps: videoBitrateForHeight(shortSide),
+        maxFramerate: 30,
+        maxAudioBitrateBps: 128_000,
+      };
       if (whipUrl && stream && video) {
         compositeRef.current?.stop();
         const composed = startLivePublishStream({
           video,
           cameraStream: stream,
           overlayEl: () => overlayHudRef.current,
-          ...captureFrameSize(orientation !== "portrait"),
+          ...captureFrameSize(orientation !== "portrait", shortSide),
+          fps: 30,
           getFrame: () => ({
             state: overlayStateRef.current,
             snapshot: snapshotRef.current,
@@ -317,9 +338,9 @@ export default function BroadcastStudio() {
           }),
         });
         compositeRef.current = composed;
-        await whipRef.current.start(composed.stream, whipUrl);
+        await whipRef.current.start(composed.stream, whipUrl, tuning);
       } else if (whipUrl && stream) {
-        await whipRef.current.start(stream, whipUrl);
+        await whipRef.current.start(stream, whipUrl, tuning);
       } else if (!whipUrl) {
         setError(
           "No WHIP URL — set MEDIAMTX_WHIP_BASE_URL to public HTTPS for phone/device publish. Status will still mark live for overlay-only.",
@@ -817,9 +838,9 @@ export default function BroadcastStudio() {
                   value={quality}
                   onChange={(e) => setQuality(e.target.value)}
                 >
-                  <option value="480">480p (recommended)</option>
-                  <option value="720">720p</option>
-                  <option value="1080">1080p</option>
+                  <option value="720">720p · 30fps · 2.5 Mbps (recommended)</option>
+                  <option value="480">480p · 30fps · 1.4 Mbps (weak 4G)</option>
+                  <option value="1080">1080p · 30fps · 3.8 Mbps (Wi-Fi / 5G)</option>
                 </SelectField>
 
                 <SocialStreamConnect
@@ -855,11 +876,14 @@ export default function BroadcastStudio() {
                             try {
                               setPhase("connecting");
                               compositeRef.current?.stop();
+                              const shortSide =
+                                quality === "720" ? 720 : quality === "1080" ? 1080 : 480;
                               const composed = startLivePublishStream({
                                 video: videoRef.current,
                                 cameraStream: streamRef.current,
                                 overlayEl: () => overlayHudRef.current,
-                                ...captureFrameSize(orientation !== "portrait"),
+                                ...captureFrameSize(orientation !== "portrait", shortSide),
+                                fps: 30,
                                 getFrame: () => ({
                                   state: overlayStateRef.current,
                                   snapshot: snapshotRef.current,
@@ -870,6 +894,11 @@ export default function BroadcastStudio() {
                               await whipRef.current.restart(
                                 composed.stream,
                                 session.whip_publish_url,
+                                {
+                                  maxVideoBitrateBps: videoBitrateForHeight(shortSide),
+                                  maxFramerate: 30,
+                                  maxAudioBitrateBps: 128_000,
+                                },
                               );
                               setPhase("live");
                             } catch (err) {

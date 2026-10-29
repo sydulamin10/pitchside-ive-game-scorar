@@ -39,7 +39,7 @@ import type { CompactState, MatchSnapshot } from "@/lib/api/types";
 import { useMatchStream } from "@/lib/realtime/useMatchStream";
 import { startLivePublishStream, type OverlayCompositor } from "@/lib/broadcast/overlayCompositor";
 import { cn } from "@/lib/utils";
-import { createWhipPublisher, type WhipStatus } from "@/lib/whipPublish";
+import { createWhipPublisher, videoBitrateForHeight, type WhipStatus } from "@/lib/whipPublish";
 import { toast, toastError } from "@/store/toast";
 
 type UiPhase =
@@ -278,11 +278,16 @@ export default function ExternalCamera() {
 
   const openMedia = useCallback(async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
       video: {
         facingMode: { ideal: facing },
         width: { ideal: 1280 },
         height: { ideal: 720 },
+        frameRate: { ideal: 30, max: 30 },
       },
     });
     streamRef.current = stream;
@@ -342,13 +347,19 @@ export default function ExternalCamera() {
       }
 
       const video = videoRef.current;
+      const tuning = {
+        maxVideoBitrateBps: videoBitrateForHeight(720),
+        maxFramerate: 30,
+        maxAudioBitrateBps: 128_000,
+      };
       if (video) {
         compositeRef.current?.stop();
         const composed = startLivePublishStream({
           video,
           cameraStream: stream,
           overlayEl: () => overlayHudRef.current,
-          ...captureFrameSize(landscape),
+          ...captureFrameSize(landscape, 720),
+          fps: 30,
           getFrame: () => ({
             state: overlayStateRef.current,
             snapshot: snapshotRef.current,
@@ -356,9 +367,9 @@ export default function ExternalCamera() {
           }),
         });
         compositeRef.current = composed;
-        await whipRef.current.start(composed.stream, whipUrl);
+        await whipRef.current.start(composed.stream, whipUrl, tuning);
       } else {
-        await whipRef.current.start(stream, whipUrl);
+        await whipRef.current.start(stream, whipUrl, tuning);
       }
       const live = await publicApi.cameraGoLive(slug!, token!, {
         device_id: slug && token ? cameraDeviceId(slug, token) : undefined,
@@ -403,11 +414,16 @@ export default function ExternalCamera() {
       setPhase("connecting");
       streamRef.current?.getTracks().forEach((t) => t.stop());
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
         video: {
           facingMode: { ideal: nextFacing },
           width: { ideal: 1280 },
           height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 30 },
         },
       });
       streamRef.current = stream;
@@ -417,13 +433,19 @@ export default function ExternalCamera() {
         await videoRef.current.play().catch(() => undefined);
       }
       const whipUrl = whipUrlRef.current ?? invite.data?.whip_publish_url;
+      const tuning = {
+        maxVideoBitrateBps: videoBitrateForHeight(720),
+        maxFramerate: 30,
+        maxAudioBitrateBps: 128_000,
+      };
       if (wasLive && whipUrl && videoRef.current) {
         compositeRef.current?.stop();
         const composed = startLivePublishStream({
           video: videoRef.current,
           cameraStream: stream,
           overlayEl: () => overlayHudRef.current,
-          ...captureFrameSize(landscape),
+          ...captureFrameSize(landscape, 720),
+          fps: 30,
           getFrame: () => ({
             state: overlayStateRef.current,
             snapshot: snapshotRef.current,
@@ -431,10 +453,10 @@ export default function ExternalCamera() {
           }),
         });
         compositeRef.current = composed;
-        await whipRef.current.restart(composed.stream, whipUrl);
+        await whipRef.current.restart(composed.stream, whipUrl, tuning);
         setPhase("live");
       } else if (wasLive && whipUrl) {
-        await whipRef.current.restart(stream, whipUrl);
+        await whipRef.current.restart(stream, whipUrl, tuning);
         setPhase("live");
       } else {
         setPhase("preview");

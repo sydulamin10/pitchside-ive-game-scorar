@@ -31,8 +31,13 @@ import { cn } from "@/lib/utils";
 
 export { directorDeckPanel } from "@/lib/broadcast/overlayRules";
 
-export function captureFrameSize(landscape: boolean): { width: number; height: number } {
-  return landscape ? { width: 1280, height: 720 } : { width: 720, height: 1280 };
+export function captureFrameSize(
+  landscape: boolean,
+  shortSide = 720,
+): { width: number; height: number } {
+  const short = shortSide >= 1080 ? 1080 : shortSide <= 480 ? 480 : 720;
+  const long = Math.round((short * 16) / 9);
+  return landscape ? { width: long, height: short } : { width: short, height: long };
 }
 
 /** Off-screen 1280×720 (or 720×1280) HUD used to stamp graphics onto the WHIP canvas. */

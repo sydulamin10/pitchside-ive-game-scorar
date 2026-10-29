@@ -76,16 +76,23 @@ export function startOverlayCompositor(opts: {
 
   let running = true;
   let raf = 0;
+  let lastPaintAt = 0;
   let lastGraphicKey: string | null = null;
   let lastCue = "";
   let graphicKind: GraphicKind = null;
   let graphicAt = 0;
   let prevRuns: number | null = null;
   const started = performance.now();
+  const minIntervalMs = Math.max(16, Math.floor(1000 / fps) - 2);
 
   const paint = () => {
     if (!running || !ctx) return;
     const now = performance.now();
+    if (lastPaintAt > 0 && now - lastPaintAt < minIntervalMs) {
+      raf = window.requestAnimationFrame(paint);
+      return;
+    }
+    lastPaintAt = now;
     try {
       drawCover(ctx, opts.video, width, height);
       const frame = opts.getFrame();

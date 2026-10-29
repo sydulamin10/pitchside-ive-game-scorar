@@ -16,7 +16,7 @@
  *   anything else    passed straight through, untouched
  */
 
-const VERSION = "v25";
+const VERSION = "v26";
 const SHELL_CACHE = `pitchside-shell-${VERSION}`;
 const ASSET_CACHE = `pitchside-assets-${VERSION}`;
 const DATA_CACHE = `pitchside-data-${VERSION}`;
